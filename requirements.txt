@@ -1,0 +1,8 @@
+chromadb
+docling
+langchain
+langchain-ibm
+ibm-watsonx-ai
+requests
+sentence-transformers
+langflow
