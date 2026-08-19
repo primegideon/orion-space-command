@@ -28,8 +28,8 @@ export default function Home() {
     setResult(null);
 
     const controller = new AbortController();
-    // 60 s hard timeout — LangFlow chains can be slow but shouldn't hang forever
-    const timer = setTimeout(() => controller.abort(), 60_000);
+    // 120 s hard timeout — two LLM calls (router + sub-agent) + NASA API can take 40-80s
+    const timer = setTimeout(() => controller.abort(), 120_000);
 
     try {
       const res = await fetch("/api/chat", {
@@ -47,7 +47,7 @@ export default function Home() {
     } catch (e) {
       clearTimeout(timer);
       if (e instanceof DOMException && e.name === "AbortError") {
-        setError("Request timed out after 60 s — is LangFlow running at localhost:7861?");
+        setError("Request timed out after 120 s. LangFlow is running but the model took too long — try again.");
       } else {
         setError(e instanceof Error ? e.message : "Unknown error");
       }

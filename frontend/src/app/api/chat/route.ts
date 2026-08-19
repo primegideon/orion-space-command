@@ -75,11 +75,21 @@ async function callFlow(
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) headers["x-api-key"] = apiKey;
 
-  const res = await fetch(`${langflowUrl}/api/v1/run/${flowId}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ input_value: query }),
-  });
+  // 110s server-side timeout — leaves 10s buffer under the 120s client timeout
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 110_000);
+
+  let res: Response;
+  try {
+    res = await fetch(`${langflowUrl}/api/v1/run/${flowId}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ input_value: query }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     const errText = await res.text();
     throw new Error(`Langflow returned ${res.status}: ${errText}`);
