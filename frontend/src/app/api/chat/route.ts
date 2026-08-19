@@ -11,6 +11,47 @@ function stripFences(text: string): string {
     .trim();
 }
 
+/** Attempt to close a truncated JSON string so partial results can still render. */
+function repairJson(s: string): string {
+  // Remove any trailing incomplete key/value (e.g. `,"key":` or `,"key":"val`)
+  let t = s.replace(/,\s*"[^"]*"?\s*:\s*"?[^",}\]]*$/, "");
+
+  // Close any open string
+  const openStrings = (t.match(/(?<!\\)"/g) ?? []).length % 2;
+  if (openStrings) t += '"';
+
+  // Count unclosed brackets/braces and close them in reverse order
+  const stack: string[] = [];
+  const pairs: Record<string, string> = { "{": "}", "[": "]" };
+  const closing = new Set(["}", "]"]);
+  for (const ch of t) {
+    if (ch === "{" || ch === "[") stack.push(pairs[ch]);
+    else if (closing.has(ch)) stack.pop();
+  }
+  t += stack.reverse().join("");
+  return t;
+}
+
+function safeParseJson(text: string, label: string): Record<string, unknown> {
+  const cleaned = stripFences(text);
+  try {
+    return JSON.parse(cleaned) as Record<string, unknown>;
+  } catch {
+    // Try to repair truncated JSON before giving up
+    try {
+      const repaired = repairJson(cleaned);
+      const parsed = JSON.parse(repaired) as Record<string, unknown>;
+      // Tag so the UI can optionally warn about partial data
+      (parsed as Record<string, unknown>)._truncated = true;
+      return parsed;
+    } catch {
+      throw new Error(
+        `${label} returned invalid JSON (truncated at ${cleaned.length} chars). Raw: ${cleaned.slice(0, 300)}…`
+      );
+    }
+  }
+}
+
 function parseLangflowText(body: unknown): string {
   const b = body as Record<string, unknown>;
   const outputs = b?.outputs as unknown[];
@@ -28,11 +69,15 @@ function parseLangflowText(body: unknown): string {
 async function callFlow(
   langflowUrl: string,
   flowId: string,
-  query: string
+  query: string,
+  apiKey?: string
 ): Promise<string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers["x-api-key"] = apiKey;
+
   const res = await fetch(`${langflowUrl}/api/v1/run/${flowId}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ input_value: query }),
   });
   if (!res.ok) {
@@ -56,6 +101,7 @@ export async function POST(req: NextRequest) {
 
     const langflowUrl = process.env.LANGFLOW_URL;
     const routerFlowId = process.env.LANGFLOW_FLOW_ID;
+    const langflowApiKey = process.env.LANGFLOW_API_KEY; // optional — set if Langflow auth is enabled
     if (!langflowUrl || !routerFlowId) {
       return NextResponse.json(
         { intent: "error", error: "LANGFLOW_URL or LANGFLOW_FLOW_ID not configured", items: [], summary: "" },
@@ -64,10 +110,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Phase 1: classify intent
-    const routerText = await callFlow(langflowUrl, routerFlowId, query.trim());
-    const routerJson = JSON.parse(stripFences(routerText)) as { intent: string; query: string };
+    const routerText = await callFlow(langflowUrl, routerFlowId, query.trim(), langflowApiKey);
+    const routerJson = safeParseJson(routerText, "Router flow") as { intent: string; query: string };
     const intent = routerJson.intent?.toLowerCase();
-    const subQuery = routerJson.query ?? query.trim();
+    const subQuery = (routerJson.query as string) ?? query.trim();
 
     // Phase 2: call sub-agent
     const flowIdMap: Record<string, string | undefined> = {
@@ -89,8 +135,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const agentText = await callFlow(langflowUrl, subFlowId, subQuery);
-    const agentData = JSON.parse(stripFences(agentText)) as Record<string, unknown>;
+    const agentText = await callFlow(langflowUrl, subFlowId, subQuery, langflowApiKey);
+    const agentData = safeParseJson(agentText, `${intent} agent flow`);
 
     return NextResponse.json({ intent, ...agentData }, { status: 200 });
   } catch (err) {
