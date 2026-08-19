@@ -146,8 +146,20 @@ export default function Home() {
 
         {/* Error banner */}
         {error && (
-          <div className="glass rounded-xl px-4 py-3 text-sm font-mono animate-fade-in break-words overflow-wrap-anywhere"
-            style={{ borderColor: "rgba(248,113,113,0.3)", color: "var(--red)", background: "var(--red-dim)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+          <div
+            className="glass rounded-xl px-4 py-3 text-sm font-mono animate-fade-in"
+            style={{
+              borderColor: "rgba(248,113,113,0.3)",
+              color: "var(--red)",
+              background: "var(--red-dim)",
+              wordBreak: "break-all",
+              overflowWrap: "anywhere",
+              whiteSpace: "pre-wrap",
+              overflow: "visible",
+              maxHeight: "none",
+              textOverflow: "unset",
+            }}
+          >
             <span className="opacity-70 mr-2">⚠</span>{error}
           </div>
         )}

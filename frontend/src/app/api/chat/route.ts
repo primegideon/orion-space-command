@@ -46,7 +46,7 @@ function safeParseJson(text: string, label: string): Record<string, unknown> {
       return parsed;
     } catch {
       throw new Error(
-        `${label} returned invalid JSON (truncated at ${cleaned.length} chars). Raw: ${cleaned.slice(0, 300)}…`
+        `${label} returned invalid JSON (${cleaned.length} chars). Raw: ${cleaned.slice(0, 600)}`
       );
     }
   }
@@ -136,7 +136,21 @@ export async function POST(req: NextRequest) {
     }
 
     const agentText = await callFlow(langflowUrl, subFlowId, subQuery, langflowApiKey);
-    const agentData = safeParseJson(agentText, `${intent} agent flow`);
+
+    // Try to parse agent response as JSON.
+    // If it fails (LLM returned prose instead of JSON), wrap it gracefully
+    // so the frontend still renders something useful rather than an error banner.
+    let agentData: Record<string, unknown>;
+    try {
+      agentData = safeParseJson(agentText, `${intent} agent flow`);
+    } catch {
+      // LLM returned natural language — wrap it so the panel still renders
+      agentData = intent === "archivist"
+        ? { agent: "archivist", sources: [], answer: agentText.trim(), confidence: "low", _prose: true }
+        : intent === "sentinel"
+          ? { agent: "sentinel", items: [], count: 0, summary: agentText.trim(), _prose: true }
+          : { agent: "forecaster", items: [], count: 0, summary: agentText.trim(), _prose: true };
+    }
 
     return NextResponse.json({ intent, ...agentData }, { status: 200 });
   } catch (err) {
