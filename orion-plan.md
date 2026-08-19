@@ -26,7 +26,7 @@ The user types a natural-language query into a single chat bar. A Langflow maste
 | 2 | Langflow Agent Flows & watsonx Integration | [x] done |
 | 3 | NASA API Integrations (Sentinel + Forecaster) | [x] done |
 | 4 | Archivist RAG Pipeline (Docling + Chroma) | [x] done |
-| 5 | Next.js Frontend Dashboard | [ ] pending |
+| 5 | Next.js Frontend Dashboard | [x] done |
 
 ---
 
@@ -184,7 +184,7 @@ Build the ORION mission control dashboard. A single chat bar at the top routes t
 - Langflow returns the agent output under `response.outputs[0].outputs[0].results.message.text` — parse accordingly.
 - Vercel cannot reach `localhost:7860` in production; the `LANGFLOW_URL` env var must point to a cloud-hosted Langflow instance for the deployed app.
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
