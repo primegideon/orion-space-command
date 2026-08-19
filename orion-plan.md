@@ -73,7 +73,7 @@ Build and verify the Langflow orchestration layer — the master router flow and
 
 **Todo List:**
 1. Launch Langflow locally and open the visual editor at `http://localhost:7861`.
-2. Create the **watsonx Granite LLM** component: configure with `WATSONX_API_KEY`, `WATSONX_PROJECT_ID`, `WATSONX_URL`, and the model ID `ibm/granite-4h-small`.
+2. Create the **watsonx Granite LLM** component: configure with `WATSONX_API_KEY`, `WATSONX_PROJECT_ID`, `WATSONX_URL`, and the model ID `meta-llama/llama-4-maverick-17b-128e-instruct-fp8`.
 3. Build the **Master Router Flow**: a prompt node that receives the user query and instructs Granite to return a JSON object `{"intent": "sentinel"|"forecaster"|"archivist", "query": "..."}`.
 4. Build three stub **Sub-Agent Flows**, each receiving the classified query and returning a hardcoded JSON response for now (e.g. `{"agent": "sentinel", "data": [], "summary": "stub"}`).
 5. Wire the Master Router to each sub-agent flow using Langflow's Sub-Flow component.

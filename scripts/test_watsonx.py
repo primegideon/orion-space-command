@@ -18,7 +18,7 @@ import sys
 REQUIRED_ENV_VARS = ["WATSONX_API_KEY", "WATSONX_PROJECT_ID"]
 DEFAULT_URL = "https://us-south.ml.cloud.ibm.com"
 TEST_PROMPT = "Reply with only the word: ONLINE"
-MODEL_ID = "ibm/granite-4h-small"
+MODEL_ID = "meta-llama/llama-4-maverick-17b-128e-instruct-fp8"
 
 
 def check_env() -> tuple[str, str, str]:

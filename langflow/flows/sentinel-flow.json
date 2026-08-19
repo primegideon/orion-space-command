@@ -7,7 +7,7 @@
         "data": {
           "sourceHandle": {
             "dataType": "ChatInput",
-            "id": "ChatInput-3B04A",
+            "id": "ChatInput-06F1E",
             "name": "message",
             "output_types": [
               "Message"
@@ -15,19 +15,19 @@
           },
           "targetHandle": {
             "fieldName": "input_value",
-            "id": "LanguageModelComponent-0C727",
+            "id": "LanguageModelComponent-273E7",
             "inputTypes": [
               "Message"
             ],
             "type": "str"
           }
         },
-        "id": "reactflow__edge-ChatInput-3B04A{\u0153dataType\u0153:\u0153ChatInput\u0153,\u0153id\u0153:\u0153ChatInput-3B04A\u0153,\u0153name\u0153:\u0153message\u0153,\u0153output_types\u0153:[\u0153Message\u0153]}-LanguageModelComponent-0C727{\u0153fieldName\u0153:\u0153input_value\u0153,\u0153id\u0153:\u0153LanguageModelComponent-0C727\u0153,\u0153inputTypes\u0153:[\u0153Message\u0153],\u0153type\u0153:\u0153str\u0153}",
+        "id": "reactflow__edge-ChatInput-06F1E{\u0153dataType\u0153:\u0153ChatInput\u0153,\u0153id\u0153:\u0153ChatInput-06F1E\u0153,\u0153name\u0153:\u0153message\u0153,\u0153output_types\u0153:[\u0153Message\u0153]}-LanguageModelComponent-273E7{\u0153fieldName\u0153:\u0153input_value\u0153,\u0153id\u0153:\u0153LanguageModelComponent-273E7\u0153,\u0153inputTypes\u0153:[\u0153Message\u0153],\u0153type\u0153:\u0153str\u0153}",
         "selected": false,
-        "source": "ChatInput-3B04A",
-        "sourceHandle": "{\u0153dataType\u0153: \u0153ChatInput\u0153, \u0153id\u0153: \u0153ChatInput-3B04A\u0153, \u0153name\u0153: \u0153message\u0153, \u0153output_types\u0153: [\u0153Message\u0153]}",
-        "target": "LanguageModelComponent-0C727",
-        "targetHandle": "{\u0153fieldName\u0153: \u0153input_value\u0153, \u0153id\u0153: \u0153LanguageModelComponent-0C727\u0153, \u0153inputTypes\u0153: [\u0153Message\u0153], \u0153type\u0153: \u0153str\u0153}"
+        "source": "ChatInput-06F1E",
+        "sourceHandle": "{\u0153dataType\u0153: \u0153ChatInput\u0153, \u0153id\u0153: \u0153ChatInput-06F1E\u0153, \u0153name\u0153: \u0153message\u0153, \u0153output_types\u0153: [\u0153Message\u0153]}",
+        "target": "LanguageModelComponent-273E7",
+        "targetHandle": "{\u0153fieldName\u0153: \u0153input_value\u0153, \u0153id\u0153: \u0153LanguageModelComponent-273E7\u0153, \u0153inputTypes\u0153: [\u0153Message\u0153], \u0153type\u0153: \u0153str\u0153}"
       },
       {
         "animated": false,
@@ -35,7 +35,7 @@
         "data": {
           "sourceHandle": {
             "dataType": "LanguageModelComponent",
-            "id": "LanguageModelComponent-0C727",
+            "id": "LanguageModelComponent-273E7",
             "name": "text_output",
             "output_types": [
               "Message"
@@ -43,7 +43,7 @@
           },
           "targetHandle": {
             "fieldName": "input_value",
-            "id": "ChatOutput-3EC89",
+            "id": "ChatOutput-B82B8",
             "inputTypes": [
               "Data",
               "JSON",
@@ -54,12 +54,12 @@
             "type": "str"
           }
         },
-        "id": "reactflow__edge-LanguageModelComponent-0C727{\u0153dataType\u0153:\u0153LanguageModelComponent\u0153,\u0153id\u0153:\u0153LanguageModelComponent-0C727\u0153,\u0153name\u0153:\u0153text_output\u0153,\u0153output_types\u0153:[\u0153Message\u0153]}-ChatOutput-3EC89{\u0153fieldName\u0153:\u0153input_value\u0153,\u0153id\u0153:\u0153ChatOutput-3EC89\u0153,\u0153inputTypes\u0153:[\u0153Data\u0153,\u0153JSON\u0153,\u0153DataFrame\u0153,\u0153Table\u0153,\u0153Message\u0153],\u0153type\u0153:\u0153str\u0153}",
+        "id": "reactflow__edge-LanguageModelComponent-273E7{\u0153dataType\u0153:\u0153LanguageModelComponent\u0153,\u0153id\u0153:\u0153LanguageModelComponent-273E7\u0153,\u0153name\u0153:\u0153text_output\u0153,\u0153output_types\u0153:[\u0153Message\u0153]}-ChatOutput-B82B8{\u0153fieldName\u0153:\u0153input_value\u0153,\u0153id\u0153:\u0153ChatOutput-B82B8\u0153,\u0153inputTypes\u0153:[\u0153Data\u0153,\u0153JSON\u0153,\u0153DataFrame\u0153,\u0153Table\u0153,\u0153Message\u0153],\u0153type\u0153:\u0153str\u0153}",
         "selected": false,
-        "source": "LanguageModelComponent-0C727",
-        "sourceHandle": "{\u0153dataType\u0153: \u0153LanguageModelComponent\u0153, \u0153id\u0153: \u0153LanguageModelComponent-0C727\u0153, \u0153name\u0153: \u0153text_output\u0153, \u0153output_types\u0153: [\u0153Message\u0153]}",
-        "target": "ChatOutput-3EC89",
-        "targetHandle": "{\u0153fieldName\u0153: \u0153input_value\u0153, \u0153id\u0153: \u0153ChatOutput-3EC89\u0153, \u0153inputTypes\u0153: [\u0153Data\u0153, \u0153JSON\u0153, \u0153DataFrame\u0153, \u0153Table\u0153, \u0153Message\u0153], \u0153type\u0153: \u0153str\u0153}"
+        "source": "LanguageModelComponent-273E7",
+        "sourceHandle": "{\u0153dataType\u0153: \u0153LanguageModelComponent\u0153, \u0153id\u0153: \u0153LanguageModelComponent-273E7\u0153, \u0153name\u0153: \u0153text_output\u0153, \u0153output_types\u0153: [\u0153Message\u0153]}",
+        "target": "ChatOutput-B82B8",
+        "targetHandle": "{\u0153fieldName\u0153: \u0153input_value\u0153, \u0153id\u0153: \u0153ChatOutput-B82B8\u0153, \u0153inputTypes\u0153: [\u0153Data\u0153, \u0153JSON\u0153, \u0153DataFrame\u0153, \u0153Table\u0153, \u0153Message\u0153], \u0153type\u0153: \u0153str\u0153}"
       }
     ],
     "nodes": [
@@ -67,7 +67,7 @@
         "data": {
           "description": "Get chat inputs from the Playground.",
           "display_name": "Chat Input",
-          "id": "ChatInput-3B04A",
+          "id": "ChatInput-06F1E",
           "node": {
             "base_classes": [
               "Message"
@@ -308,7 +308,7 @@
           "type": "ChatInput"
         },
         "dragging": false,
-        "id": "ChatInput-3B04A",
+        "id": "ChatInput-06F1E",
         "measured": {
           "height": 234,
           "width": 320
@@ -326,7 +326,7 @@
       },
       {
         "data": {
-          "id": "ChatOutput-3EC89",
+          "id": "ChatOutput-B82B8",
           "node": {
             "base_classes": [
               "Message"
@@ -587,7 +587,7 @@
           "type": "ChatOutput"
         },
         "dragging": false,
-        "id": "ChatOutput-3EC89",
+        "id": "ChatOutput-B82B8",
         "measured": {
           "height": 234,
           "width": 320
@@ -605,7 +605,7 @@
       },
       {
         "data": {
-          "id": "LanguageModelComponent-0C727",
+          "id": "LanguageModelComponent-273E7",
           "node": {
             "base_classes": [
               "LanguageModel",
@@ -700,7 +700,7 @@
             "priority": 0,
             "template": {
               "_frontend_node_flow_id": {
-                "value": "661af1e2-2cda-41ef-8e8d-ef27d2b1cfb4"
+                "value": "9166a401-6d91-49ca-8e46-b1c702995c74"
               },
               "_frontend_node_folder_id": {
                 "value": "ce670bdf-fcca-4006-9f28-b58452b08ea2"
@@ -865,7 +865,7 @@
                 "trace_as_input": true,
                 "track_in_telemetry": false,
                 "type": "model",
-                "value": "ibm/granite-4h-small"
+                "value": "meta-llama/llama-4-maverick-17b-128e-instruct-fp8"
               },
               "model_name": {
                 "_input_type": "StrInput",
@@ -1040,7 +1040,7 @@
           "type": "LanguageModelComponent"
         },
         "dragging": false,
-        "id": "LanguageModelComponent-0C727",
+        "id": "LanguageModelComponent-273E7",
         "measured": {
           "height": 341,
           "width": 320
@@ -1061,7 +1061,7 @@
   },
   "description": "Tracks near-Earth asteroids via NASA NeoWs API. Stub version for Phase 2.",
   "endpoint_name": null,
-  "id": "661af1e2-2cda-41ef-8e8d-ef27d2b1cfb4",
+  "id": "9166a401-6d91-49ca-8e46-b1c702995c74",
   "is_component": false,
   "last_tested_version": "1.8.0",
   "name": "ORION Sentinel \u2014 Asteroid Tracker",

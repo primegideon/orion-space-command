@@ -192,7 +192,7 @@ python scripts/test_langflow.py --query "show me asteroids approaching this week
 ChatInput ──► Prompt (intent classification template)
                │   {user_query} variable
                ▼
-         WatsonxAI — Granite (ibm/granite-4h-small)
+         WatsonxAI — Granite (meta-llama/llama-4-maverick-17b-128e-instruct-fp8)
                │   temperature=0, max_tokens=256
                ▼
          ChatOutput → JSON: {intent, query, reasoning}

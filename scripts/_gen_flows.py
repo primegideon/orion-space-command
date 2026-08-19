@@ -61,7 +61,7 @@ def make_flow(name, description, system_message, sender_name):
 
         if ntype == "LanguageModelComponent":
             if "model" in tmpl:
-                tmpl["model"]["value"] = "ibm/granite-4h-small"
+                tmpl["model"]["value"] = "meta-llama/llama-4-maverick-17b-128e-instruct-fp8"
             if "project_id" in tmpl:
                 tmpl["project_id"]["value"] = ""
                 tmpl["project_id"]["load_from_db"] = False
