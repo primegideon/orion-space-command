@@ -90,7 +90,7 @@ export default function DetailPanel({ item, type, onClose }: DetailPanelProps) {
                 <Row label="Miss Distance" value={`${fmt(a.miss_distance_km)} km`} />
                 <Row label="Diameter (max)" value={`${fmt(a.estimated_diameter_km_max, 3)} km`} />
                 <Row label="Velocity" value={`${fmt(a.relative_velocity_kmh)} km/h`} />
-                <Row label="Hazard Status" value={a.is_potentially_hazardous ? "⚠ Potentially Hazardous Object" : "✓ Safe"} />
+                <Row label="Hazard Status" value={a.is_potentially_hazardous ? "PHO - Potentially Hazardous Object" : "Safe"} />
               </>
             );
           })()}

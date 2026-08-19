@@ -144,10 +144,10 @@ The `./scripts/ingest_pdfs.py` script uses **IBM Docling's `DocumentConverter`**
 
 ```
 arXiv PDFs (./data/pdfs/)
-  └─► IBM Docling DocumentConverter → structured markdown
-        └─► 512-token chunks with 64-token overlap
-              └─► sentence-transformers/all-MiniLM-L6-v2 embeddings
-                    └─► Chroma PersistentClient (./data/chroma_db/)
+  +-> IBM Docling DocumentConverter -> structured markdown
+        +-> 512-token chunks with 64-token overlap
+              +-> sentence-transformers/all-MiniLM-L6-v2 embeddings
+                    +-> Chroma PersistentClient (./data/chroma_db/)
 ```
 
 ### Structured Response Contract
@@ -318,41 +318,41 @@ Set the printed HTTPS URL as `LANGFLOW_URL` in Vercel project environment variab
 
 ```
 orion-space-command/
-├── assets/
-│   ├── orion-animated-logo.svg     # Project logo (SVG, animated)
-│   ├── sentinel-ui.png             # Dashboard screenshot — Sentinel panel
-│   ├── forecaster-ui.png           # Dashboard screenshot — Forecaster panel
-│   └── archivist-ui.png            # Dashboard screenshot — Archivist panel
-├── frontend/                       # Next.js 14 app (TypeScript + Tailwind CSS)
-│   ├── src/app/
-│   │   ├── page.tsx                # Main dashboard page
-│   │   └── api/chat/route.ts       # Langflow proxy API route
-│   ├── src/components/
-│   │   ├── SentinelPanel.tsx
-│   │   ├── ForecasterPanel.tsx
-│   │   ├── ArchivistPanel.tsx
-│   │   ├── TelemetryConsole.tsx    # Live telemetry log console
-│   │   └── DetailPanel.tsx         # Slide-out item detail drawer
-│   └── .env.local                  # Local env vars (never committed)
-├── langflow/
-│   ├── flows/
-│   │   ├── orion-router.json
-│   │   ├── sentinel-flow.json
-│   │   ├── forecaster-flow.json
-│   │   └── archivist-flow.json
-│   └── components/                 # Custom Langflow Python components
-├── scripts/
-│   ├── ingest_pdfs.py              # One-time Docling to Chroma ingestion
-│   ├── test_nasa_apis.py           # NASA API connectivity smoke test
-│   ├── test_watsonx.py             # watsonx LLM connectivity smoke test
-│   └── test_model_candidates.py    # watsonx model benchmarking
-├── data/
-│   ├── pdfs/                       # arXiv source PDFs
-│   ├── chroma_db/                  # Persisted Chroma vector store
-│   └── README.md                   # PDF sources and arXiv IDs
-├── requirements.txt                # Python dependencies
-├── .env.example                    # Environment variable template (safe to commit)
-└── orion-plan.md                   # Full phased development plan
++-- assets/
+|   +-- orion-animated-logo.svg     # Project logo (SVG, animated)
+|   +-- sentinel-ui.png             # Dashboard screenshot - Sentinel panel
+|   +-- forecaster-ui.png           # Dashboard screenshot - Forecaster panel
+|   +-- archivist-ui.png            # Dashboard screenshot - Archivist panel
++-- frontend/                       # Next.js 14 app (TypeScript + Tailwind CSS)
+|   +-- src/app/
+|   |   +-- page.tsx                # Main dashboard page
+|   |   +-- api/chat/route.ts       # Langflow proxy API route
+|   +-- src/components/
+|   |   +-- SentinelPanel.tsx
+|   |   +-- ForecasterPanel.tsx
+|   |   +-- ArchivistPanel.tsx
+|   |   +-- TelemetryConsole.tsx    # Live telemetry log console
+|   |   +-- DetailPanel.tsx         # Slide-out item detail drawer
+|   +-- .env.local                  # Local env vars (never committed)
++-- langflow/
+|   +-- flows/
+|   |   +-- orion-router.json
+|   |   +-- sentinel-flow.json
+|   |   +-- forecaster-flow.json
+|   |   +-- archivist-flow.json
+|   +-- components/                 # Custom Langflow Python components
++-- scripts/
+|   +-- ingest_pdfs.py              # One-time Docling to Chroma ingestion
+|   +-- test_nasa_apis.py           # NASA API connectivity smoke test
+|   +-- test_watsonx.py             # watsonx LLM connectivity smoke test
+|   +-- test_model_candidates.py    # watsonx model benchmarking
++-- data/
+|   +-- pdfs/                       # arXiv source PDFs
+|   +-- chroma_db/                  # Persisted Chroma vector store
+|   +-- README.md                   # PDF sources and arXiv IDs
++-- requirements.txt                # Python dependencies
++-- .env.example                    # Environment variable template (safe to commit)
++-- orion-plan.md                   # Full phased development plan
 ```
 
 ---

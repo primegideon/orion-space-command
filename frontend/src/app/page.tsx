@@ -228,7 +228,7 @@ export default function Home() {
               textOverflow: "unset",
             }}
           >
-            <span className="opacity-70 mr-2">⚠</span>{error}
+            <span className="opacity-70 mr-2 font-mono">[WARN]</span>{error}
           </div>
         )}
 

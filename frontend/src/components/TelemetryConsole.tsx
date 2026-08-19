@@ -58,7 +58,7 @@ export default function TelemetryConsole({ logs, isOpen, onToggle }: Props) {
             className="text-[10px] tracking-[0.18em] uppercase shrink-0"
             style={{ color: "var(--cyan)" }}
           >
-            {isOpen ? "▾" : "▸"} TELEMETRY CONSOLE
+            {isOpen ? "[-]" : "[+]"} TELEMETRY CONSOLE
           </span>
           {!isOpen && latest && (
             <span
