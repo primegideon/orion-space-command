@@ -25,7 +25,7 @@ The user types a natural-language query into a single chat bar. A Langflow maste
 | 1 | Environment & Project Scaffolding | [x] done |
 | 2 | Langflow Agent Flows & watsonx Integration | [x] done |
 | 3 | NASA API Integrations (Sentinel + Forecaster) | [x] done |
-| 4 | Archivist RAG Pipeline (Docling + Chroma) | [ ] pending |
+| 4 | Archivist RAG Pipeline (Docling + Chroma) | [x] done |
 | 5 | Next.js Frontend Dashboard | [ ] pending |
 
 ---
@@ -150,7 +150,7 @@ Build the full RAG pipeline for the Archivist agent. This involves sourcing arXi
 - The custom Langflow component class must subclass `langflow.custom.CustomComponent` and implement a `build()` method.
 - Embedding model runs locally — no API key required for retrieval.
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 

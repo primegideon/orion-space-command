@@ -1,0 +1,35 @@
+﻿# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Secrets - NEVER commit
+.env
+.env.local
+.env*.local
+
+# Chroma vector store - binary, regenerate with ingest_pdfs.py
+data/chroma_db/
+
+# Downloaded PDFs - regenerate with download_pdfs.py
+data/pdfs/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.env*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Langflow local DB
+langflow.db
+langflow-pre-1.0-migrations.db
