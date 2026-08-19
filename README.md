@@ -303,14 +303,50 @@ The dashboard is available at **http://localhost:3000**.
 
 ### Vercel Deployment (live demo)
 
-Expose the local Langflow instance with ngrok:
+The Next.js frontend deploys to Vercel as-is. Langflow runs locally, so it must be
+tunnelled to a public HTTPS URL before Vercel can reach it.
+
+**Step 1 — Expose Langflow with ngrok**
 
 ```bash
-# Terminal 3
+# Terminal 3 (keep running for the duration of the demo)
 ngrok http 7861
 ```
 
-Set the printed HTTPS URL as `LANGFLOW_URL` in Vercel project environment variables, alongside `LANGFLOW_FLOW_ID`. Redeploy. The ngrok URL changes each session unless a reserved domain is configured.
+ngrok prints a public URL such as `https://abc123.ngrok-free.app`. Copy it.
+
+**Step 2 — Set environment variables in Vercel**
+
+In the Vercel dashboard for this project, go to **Settings -> Environment Variables**
+and add the following (all environments: Production, Preview, Development):
+
+| Variable | Value |
+|----------|-------|
+| `LANGFLOW_URL` | `https://abc123.ngrok-free.app` (your ngrok URL) |
+| `LANGFLOW_FLOW_ID` | Master Router flow ID from Langflow UI |
+| `SENTINEL_FLOW_ID` | Sentinel flow ID from Langflow UI |
+| `FORECASTER_FLOW_ID` | Forecaster flow ID from Langflow UI |
+| `ARCHIVIST_FLOW_ID` | Archivist flow ID from Langflow UI |
+| `NASA_API_KEY` | Your NASA API key |
+| `LANGFLOW_API_KEY` | Only if Langflow auth is enabled (optional) |
+
+**Step 3 — Deploy**
+
+```bash
+# From the frontend/ directory, or connect the repo to Vercel via the dashboard
+npx vercel --prod
+```
+
+Or push to `main` — Vercel auto-deploys on every push if the repo is connected.
+
+> The ngrok URL changes every session unless a paid reserved domain is configured.
+> Update `LANGFLOW_URL` in Vercel each time a new ngrok session is started.
+
+**One-click deploy**
+
+Connect the repository at **https://github.com/primegideon/orion-space-command**
+to Vercel and set the **Root Directory** to `frontend`. All environment variables
+above must be configured before the first deployment.
 
 ---
 
@@ -350,8 +386,11 @@ orion-space-command/
 |   +-- pdfs/                       # arXiv source PDFs
 |   +-- chroma_db/                  # Persisted Chroma vector store
 |   +-- README.md                   # PDF sources and arXiv IDs
++-- frontend/
+|   +-- vercel.json                 # Vercel deployment configuration
 +-- requirements.txt                # Python dependencies
 +-- .env.example                    # Environment variable template (safe to commit)
++-- LICENSE                         # MIT License
 +-- orion-plan.md                   # Full phased development plan
 ```
 
@@ -363,3 +402,9 @@ orion-space-command/
 - Root `.env` — gitignored.
 - **Never commit** `NASA_API_KEY`, `WATSONX_API_KEY`, or `WATSONX_PROJECT_ID`.
 - `.env.example` contains only placeholder values and is safe to commit.
+
+---
+
+## License
+
+This project is licensed under the **MIT License** — see the [LICENSE](./LICENSE) file for details.

@@ -1,0 +1,23 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "env": {
+    "LANGFLOW_URL": "@langflow_url",
+    "LANGFLOW_FLOW_ID": "@langflow_flow_id",
+    "SENTINEL_FLOW_ID": "@sentinel_flow_id",
+    "FORECASTER_FLOW_ID": "@forecaster_flow_id",
+    "ARCHIVIST_FLOW_ID": "@archivist_flow_id",
+    "NASA_API_KEY": "@nasa_api_key",
+    "LANGFLOW_API_KEY": "@langflow_api_key"
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    }
+  ]
+}
