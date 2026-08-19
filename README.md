@@ -17,7 +17,7 @@ Browser
   └─► Next.js frontend (Vercel / localhost:3000)
         └─► /api/chat  (Next.js API route, server-side)
               └─► POST http://<LANGFLOW_URL>/api/v1/run/<LANGFLOW_FLOW_ID>
-                    └─► Langflow Master Router (localhost:7860)
+                    └─► Langflow Master Router (localhost:7861)
                           ├─► Sentinel Flow  ──► NASA NeoWs API
                           ├─► Forecaster Flow ──► NASA DONKI API
                           └─► Archivist Flow  ──► Chroma vector store
@@ -84,7 +84,7 @@ cp .env.example frontend/.env.local
 Edit `frontend/.env.local` with real values:
 
 ```
-LANGFLOW_URL=http://localhost:7860
+LANGFLOW_URL=http://localhost:7861
 LANGFLOW_FLOW_ID=<your-master-router-flow-id>
 NASA_API_KEY=<your-nasa-api-key>
 ```
@@ -110,7 +110,7 @@ Before running the project, you must **import the Langflow flows** and **configu
 **Quick steps:**
 
 1. Start Langflow: `python -m langflow run` (from `.venv`)
-2. Open **http://localhost:7860**
+2. Open **http://localhost:7861**
 3. Import all four flow JSON files from `./langflow/flows/`:
    - `orion-router.json` (Master Router)
    - `sentinel-flow.json` (Sentinel Agent)
@@ -142,7 +142,7 @@ Start each service in a separate terminal:
 python -m langflow run
 ```
 
-Langflow opens at **http://localhost:7860**. Import the flow JSON files from `./langflow/flows/` via the Langflow UI.
+Langflow opens at **http://localhost:7861**. Import the flow JSON files from `./langflow/flows/` via the Langflow UI.
 
 ### Terminal 2 — Next.js dev server
 
@@ -157,14 +157,14 @@ The dashboard opens at **http://localhost:3000**.
 
 ## Vercel Deployment
 
-The Next.js frontend deploys to Vercel as-is. However, Langflow runs locally and Vercel cannot reach `localhost:7860`.
+The Next.js frontend deploys to Vercel as-is. However, Langflow runs locally and Vercel cannot reach `localhost:7861`.
 
 **Before the demo, expose your local Langflow instance with ngrok:**
 
 ### Terminal 3 — ngrok tunnel
 
 ```bash
-ngrok http 7860
+ngrok http 7861
 ```
 
 ngrok will print a public HTTPS URL such as `https://abc123.ngrok-free.app`.

@@ -53,7 +53,7 @@ Establish the full project skeleton so every subsequent phase has a clean, consi
 **Relevant Context:**
 - `.venv` already exists in the workspace root.
 - Next.js app must live in `./frontend` (separate from the Python layer).
-- Langflow default port is `7860`; Next.js default is `3000`.
+- Langflow default port is `7861`; Next.js default is `3000`.
 
 **Status:** [x] done
 
@@ -72,7 +72,7 @@ Build and verify the Langflow orchestration layer — the master router flow and
 - A smoke-test curl command against `POST /api/v1/run/{flow_id}` returns a valid JSON payload.
 
 **Todo List:**
-1. Launch Langflow locally and open the visual editor at `http://localhost:7860`.
+1. Launch Langflow locally and open the visual editor at `http://localhost:7861`.
 2. Create the **watsonx Granite LLM** component: configure with `WATSONX_API_KEY`, `WATSONX_PROJECT_ID`, `WATSONX_URL`, and the model ID `ibm/granite-4h-small`.
 3. Build the **Master Router Flow**: a prompt node that receives the user query and instructs Granite to return a JSON object `{"intent": "sentinel"|"forecaster"|"archivist", "query": "..."}`.
 4. Build three stub **Sub-Agent Flows**, each receiving the classified query and returning a hardcoded JSON response for now (e.g. `{"agent": "sentinel", "data": [], "summary": "stub"}`).
@@ -83,7 +83,7 @@ Build and verify the Langflow orchestration layer — the master router flow and
 **Relevant Context:**
 - Langflow IBM watsonx component requires `ibm-watsonx-ai` to be installed in the same Python environment as Langflow.
 - Flow exports are accessible via Langflow UI: Settings → Export.
-- The Next.js API route (built in Phase 5) will call `POST http://localhost:7860/api/v1/run/{LANGFLOW_FLOW_ID}` with `{"input_value": "<user query>"}`.
+- The Next.js API route (built in Phase 5) will call `POST http://localhost:7861/api/v1/run/{LANGFLOW_FLOW_ID}` with `{"input_value": "<user query>"}`.
 
 **Status:** [x] done
 
@@ -161,7 +161,7 @@ Build the ORION mission control dashboard. A single chat bar at the top routes t
 
 **Expected Outcomes:**
 - The Next.js app at `./frontend` has a working Mission Control page (`/`).
-- A `/api/chat` API route proxies `POST` requests to `http://localhost:7860/api/v1/run/{LANGFLOW_FLOW_ID}` and returns the structured agent response.
+- A `/api/chat` API route proxies `POST` requests to `http://localhost:7861/api/v1/run/{LANGFLOW_FLOW_ID}` and returns the structured agent response.
 - The page renders three panels: Sentinel (asteroid table), Forecaster (solar flare timeline/cards), Archivist (Q&A with source citations).
 - Each panel shows a "waiting for signal" empty state and a loading skeleton while the query is in flight.
 - The active panel (matching the detected intent) is visually highlighted.
@@ -182,7 +182,7 @@ Build the ORION mission control dashboard. A single chat bar at the top routes t
 - API route lives in `./frontend/app/api/chat/route.ts` (Next.js App Router convention).
 - `LANGFLOW_URL` and `LANGFLOW_FLOW_ID` are read from `process.env` in the API route — never exposed to the browser.
 - Langflow returns the agent output under `response.outputs[0].outputs[0].results.message.text` — parse accordingly.
-- Vercel cannot reach `localhost:7860` in production; the `LANGFLOW_URL` env var must point to a cloud-hosted Langflow instance for the deployed app.
+- Vercel cannot reach `localhost:7861` in production; the `LANGFLOW_URL` env var must point to a cloud-hosted Langflow instance for the deployed app.
 
 **Status:** [x] done
 
@@ -195,4 +195,4 @@ Build the ORION mission control dashboard. A single chat bar at the top routes t
 - **Error contract**: Every Langflow flow should return a consistent shape even on error: `{"agent": "...", "error": "...", "items": [], "summary": ""}`. This simplifies frontend error handling.
 - **arXiv PDF sourcing**: Use the arXiv bulk access guidelines. Suggested papers: solar flare forecasting surveys, near-Earth object detection papers, and general astrophysics reviews. Document DOIs/arXiv IDs in `./data/README.md`.
 - **Embeddings**: Local `sentence-transformers/all-MiniLM-L6-v2` — runs entirely in process, no API cost. Do not swap to watsonx embeddings.
-- **Vercel ↔ Langflow bridge**: Use ngrok to tunnel local Langflow port `7860` to a public HTTPS URL. Set the resulting ngrok URL as `LANGFLOW_URL` in Vercel environment variables for the final demo. Add a note to `README.md` on starting ngrok before the demo.
+- **Vercel ↔ Langflow bridge**: Use ngrok to tunnel local Langflow port `7861` to a public HTTPS URL. Set the resulting ngrok URL as `LANGFLOW_URL` in Vercel environment variables for the final demo. Add a note to `README.md` on starting ngrok before the demo.

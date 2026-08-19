@@ -6,7 +6,7 @@ This guide covers how to add the custom NASA data-fetching nodes to the existing
 
 ## Prerequisites
 
-- Langflow is running at `http://localhost:7860` (start with `python -m langflow run` from the `.venv`).
+- Langflow is running at `http://localhost:7861` (start with `python -m langflow run` from the `.venv`).
 - The Phase 2 flows (`ORION Sentinel — Asteroid Tracker` and `ORION Forecaster — Solar Weather`) are already imported and visible in the Langflow workspace.
 - You have a NASA API key. Get one free at <https://api.nasa.gov/>. You can also use `DEMO_KEY` for testing (rate-limited).
 
@@ -16,7 +16,7 @@ This guide covers how to add the custom NASA data-fetching nodes to the existing
 
 ### Step 1 — Open the Sentinel flow
 
-1. Open Langflow at `http://localhost:7860`.
+1. Open Langflow at `http://localhost:7861`.
 2. Click the **Sentinel** flow card (`ORION Sentinel — Asteroid Tracker`) to open the canvas.
 
 ### Step 2 — Add the Sentinel NASA custom component

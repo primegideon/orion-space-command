@@ -46,13 +46,13 @@ source .venv/bin/activate
 python -m langflow run
 ```
 
-Langflow opens at **http://localhost:7860**. Leave this terminal running.
+Langflow opens at **http://localhost:7861**. Leave this terminal running.
 
 ---
 
 ## 2. Import the Flow JSON Files
 
-1. Open **http://localhost:7860** in your browser.
+1. Open **http://localhost:7861** in your browser.
 2. Click the **"My Flows"** section on the home page.
 3. Click the **"Upload"** button (folder/arrow icon, top-right of the flows grid).
 4. Import each file in order:
@@ -111,7 +111,7 @@ Open each flow in the editor, click the **WatsonxAI — Granite** node, and past
 After importing, the flow ID appears in the browser URL when you open the flow for editing:
 
 ```
-http://localhost:7860/flow/<FLOW_ID>
+http://localhost:7861/flow/<FLOW_ID>
 ```
 
 The **Master Router** flow ID (`orion-router`) is the one you need for the Next.js frontend.
@@ -137,7 +137,7 @@ The Next.js API route reads this value at runtime when proxying requests to Lang
 | `WATSONX_API_KEY`    | Langflow / scripts   | IBM Cloud API key for watsonx.ai                   |
 | `WATSONX_PROJECT_ID` | Langflow / scripts   | watsonx.ai project ID                              |
 | `WATSONX_URL`        | Langflow / scripts   | watsonx.ai endpoint (default: `https://us-south.ml.cloud.ibm.com`) |
-| `LANGFLOW_URL`       | Next.js `.env.local` | Langflow base URL (default: `http://localhost:7860`) |
+| `LANGFLOW_URL`       | Next.js `.env.local` | Langflow base URL (default: `http://localhost:7861`) |
 | `LANGFLOW_FLOW_ID`   | Next.js `.env.local` | Master Router flow ID from Langflow UI              |
 | `NASA_API_KEY`       | Next.js `.env.local` | NASA Open APIs key (free at https://api.nasa.gov)   |
 
@@ -148,7 +148,7 @@ The Next.js API route reads this value at runtime when proxying requests to Lang
 Once flows are imported and watsonx credentials are set, test the Master Router:
 
 ```bash
-curl -X POST "http://localhost:7860/api/v1/run/<FLOW_ID>" \
+curl -X POST "http://localhost:7861/api/v1/run/<FLOW_ID>" \
   -H "Content-Type: application/json" \
   -d '{"input_value": "show me asteroids approaching this week"}'
 ```
@@ -226,7 +226,7 @@ ChatInput ──► Prompt (agent-specific stub template)
 
 **Langflow fails to start**
 - Ensure `.venv` is activated before running `python -m langflow run`.
-- If port 7860 is in use, start on a different port: `python -m langflow run --port 7861`.
+- If port 7861 is in use, start on a different port: `python -m langflow run --port 7862`.
 
 **WatsonxAI node shows a connection error**
 - Verify `WATSONX_API_KEY` and `WATSONX_PROJECT_ID` are set correctly.

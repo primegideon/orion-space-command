@@ -38,7 +38,7 @@ Re-running the script **replaces** the collection from scratch (idempotent).
 
 ## Step 3 — Add the Custom Component to Langflow
 
-1. Open Langflow at `http://localhost:7860`.
+1. Open Langflow at `http://localhost:7861`.
 2. Navigate to the **Archivist flow** (`archivist-flow.json`).
 3. Click **Custom Component** → paste the contents of  
    [`./components/archivist_retriever.py`](components/archivist_retriever.py).
