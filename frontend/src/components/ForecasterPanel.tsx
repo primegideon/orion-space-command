@@ -86,12 +86,12 @@ export default function ForecasterPanel({ data, loading, active, dimmed, onSelec
   const overflow  = (data?.items?.length ?? 0) - 8;
 
   return (
-    <div className={`glass flex flex-col gap-4 p-5 transition-all duration-400
+    <div className={`glass flex flex-col p-5 transition-all duration-400 h-full overflow-hidden
       ${active ? "glass-active-amber" : ""}
       ${dimmed ? "panel-inactive" : ""}`}>
 
-      {/* Header */}
-      <div className="flex items-start justify-between">
+      {/* Header — pinned */}
+      <div className="flex items-start justify-between shrink-0 mb-4">
         <div>
           <span className="label">Forecaster</span>
           <h2 className="font-mono font-semibold text-[15px] leading-snug mt-0.5"
@@ -104,6 +104,9 @@ export default function ForecasterPanel({ data, loading, active, dimmed, onSelec
           DONKI
         </span>
       </div>
+
+      {/* Scrollable body */}
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin flex flex-col gap-3">
 
       {/* Loading skeletons */}
       {loading && (
@@ -173,6 +176,8 @@ export default function ForecasterPanel({ data, loading, active, dimmed, onSelec
           )}
         </div>
       )}
+
+      </div>{/* end scrollable body */}
     </div>
   );
 }
