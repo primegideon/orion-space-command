@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, KeyboardEvent } from "react";
-import SentinelPanel, { SentinelData } from "@/components/SentinelPanel";
-import ForecasterPanel, { ForecasterData } from "@/components/ForecasterPanel";
+import SentinelPanel, { SentinelData, AsteroidItem } from "@/components/SentinelPanel";
+import ForecasterPanel, { ForecasterData, FlareItem } from "@/components/ForecasterPanel";
 import ArchivistPanel, { ArchivistData } from "@/components/ArchivistPanel";
+import TelemetryConsole, { TelemetryLog } from "@/components/TelemetryConsole";
+import DetailPanel from "@/components/DetailPanel";
 
 type AgentResult =
   | (SentinelData & { intent: "sentinel" })
@@ -12,20 +14,48 @@ type AgentResult =
   | { intent: "error"; error: string }
   | null;
 
+const STACK_BADGES = [
+  { id: "neows",    label: "NeoWs",    ver: "v1",       color: "var(--cyan)" },
+  { id: "chroma",   label: "Chroma",   ver: "DB",       color: "var(--emerald)" },
+  { id: "docling",  label: "Docling",  ver: "v4",       color: "var(--emerald)" },
+  { id: "llama",    label: "Llama-4",  ver: "Maverick", color: "var(--amber)" },
+  { id: "langflow", label: "Langflow", ver: "1.11",     color: "var(--cyan)" },
+];
+
 export default function Home() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AgentResult>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Telemetry console state
+  const [consoleLogs, setConsoleLogs] = useState<TelemetryLog[]>([]);
+  const [consoleOpen, setConsoleOpen] = useState(false);
+
+  // Detail panel state
+  const [detailItem, setDetailItem] = useState<AsteroidItem | FlareItem | null>(null);
+  const [detailType, setDetailType] = useState<"asteroid" | "flare" | null>(null);
+
   const activeIntent =
     result && result.intent !== "error" ? result.intent : null;
+
+  function addLog(level: TelemetryLog["level"], msg: string) {
+    const now = new Date();
+    const ts = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}.${String(now.getMilliseconds()).padStart(3, "0")}`;
+    setConsoleLogs((prev) => [...prev, { ts, level, msg }]);
+  }
 
   async function transmit() {
     if (!query.trim() || loading) return;
     setLoading(true);
     setError(null);
     setResult(null);
+    setConsoleLogs([]);
+    setConsoleOpen(true);
+
+    addLog("INFO", "ORION Space Command — session initialized");
+    addLog("ROUTE", "Dispatching query to ORION Master Router...");
+    addLog("LLM", "llama-4-maverick-17b → intent classification");
 
     const controller = new AbortController();
     // 120 s hard timeout — two LLM calls (router + sub-agent) + NASA API can take 40-80s
@@ -42,14 +72,24 @@ export default function Home() {
       const data: AgentResult = (await res.json()) as AgentResult;
       setResult(data);
       if (data?.intent === "error") {
-        setError((data as { intent: "error"; error: string }).error);
+        const errMsg = (data as { intent: "error"; error: string }).error;
+        setError(errMsg);
+        addLog("WARN", errMsg);
+      } else if (data) {
+        addLog("ROUTE", `Intent resolved: ${data.intent}`);
+        addLog("FETCH", "Calling sub-agent flow...");
+        addLog("OK", `Response received — ${JSON.stringify(data).length} bytes`);
       }
     } catch (e) {
       clearTimeout(timer);
       if (e instanceof DOMException && e.name === "AbortError") {
-        setError("Request timed out after 120 s. LangFlow is running but the model took too long — try again.");
+        const msg = "Request timed out after 120 s. LangFlow is running but the model took too long — try again.";
+        setError(msg);
+        addLog("WARN", msg);
       } else {
-        setError(e instanceof Error ? e.message : "Unknown error");
+        const msg = e instanceof Error ? e.message : "Unknown error";
+        setError(msg);
+        addLog("WARN", msg);
       }
     } finally {
       setLoading(false);
@@ -58,6 +98,21 @@ export default function Home() {
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") transmit();
+  }
+
+  function openAsteroid(item: AsteroidItem) {
+    setDetailItem(item);
+    setDetailType("asteroid");
+  }
+
+  function openFlare(item: FlareItem) {
+    setDetailItem(item);
+    setDetailType("flare");
+  }
+
+  function closeDetail() {
+    setDetailItem(null);
+    setDetailType(null);
   }
 
   return (
@@ -91,27 +146,40 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Status indicators */}
-        <div className="hidden sm:flex items-center gap-5">
-          {[
-            { label: "LangFlow", ok: true },
-            { label: "watsonx",  ok: true },
-            { label: "NASA API", ok: true },
-          ].map(({ label, ok }) => (
-            <span key={label} className="flex items-center gap-1.5 text-[11px] font-mono tracking-wide" style={{ color: "var(--muted)" }}>
-              <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-emerald-400" : "bg-red-400"}`}
-                style={ok ? { boxShadow: "0 0 5px var(--emerald)" } : {}} />
+        {/* Tech-stack badges */}
+        <div className="hidden sm:flex items-center gap-2 flex-wrap justify-end">
+          {STACK_BADGES.map(({ id, label, ver, color }) => (
+            <span
+              key={id}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono tracking-wide"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                color: "rgba(255,255,255,0.65)",
+              }}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0${loading ? " animate-badge-glow" : ""}`}
+                style={{
+                  background: color,
+                  boxShadow: `0 0 6px ${color}`,
+                }}
+              />
               {label}
+              <span style={{ color: "rgba(255,255,255,0.35)" }}>{ver}</span>
             </span>
           ))}
         </div>
       </header>
 
       {/* ── Main ───────────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col gap-5 px-5 py-5 max-w-screen-xl w-full mx-auto">
+      <main className="flex-1 flex flex-col gap-5 px-5 py-5 max-w-screen-xl w-full mx-auto pb-16">
 
         {/* Query bar */}
-        <div className="glass flex gap-2 p-2" style={{ borderRadius: "14px" }}>
+        <div
+          className={`glass flex gap-2 p-2${loading ? " glass-loading" : ""}`}
+          style={{ borderRadius: "14px" }}
+        >
           <input
             type="text"
             value={query}
@@ -171,12 +239,14 @@ export default function Home() {
             loading={loading && (!activeIntent || activeIntent === "sentinel")}
             active={activeIntent === "sentinel" || activeIntent === null}
             dimmed={activeIntent !== null && activeIntent !== "sentinel"}
+            onSelectItem={openAsteroid}
           />
           <ForecasterPanel
             data={result?.intent === "forecaster" ? (result as ForecasterData) : null}
             loading={loading && (!activeIntent || activeIntent === "forecaster")}
             active={activeIntent === "forecaster" || activeIntent === null}
             dimmed={activeIntent !== null && activeIntent !== "forecaster"}
+            onSelectItem={openFlare}
           />
           <ArchivistPanel
             data={result?.intent === "archivist" ? (result as ArchivistData) : null}
@@ -194,6 +264,16 @@ export default function Home() {
         <span className="text-white/70 font-semibold">IBM watsonx Granite</span>
         {" "}·{" "}LangFlow · NASA APIs · IBM Docling
       </footer>
+
+      {/* ── Detail panel ───────────────────────────────────────────────── */}
+      <DetailPanel item={detailItem} type={detailType} onClose={closeDetail} />
+
+      {/* ── Telemetry console ──────────────────────────────────────────── */}
+      <TelemetryConsole
+        logs={consoleLogs}
+        isOpen={consoleOpen}
+        onToggle={() => setConsoleOpen((o) => !o)}
+      />
     </div>
   );
 }

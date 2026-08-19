@@ -24,6 +24,7 @@ interface Props {
   loading: boolean;
   active: boolean;
   dimmed?: boolean;
+  onSelectItem?: (item: FlareItem) => void;
 }
 
 function classBadgeStyle(classType: string): React.CSSProperties {
@@ -42,8 +43,10 @@ function formatTime(t: string): string {
 /* ── Pulsing waveform idle ───────────────────────────────────────────────── */
 function WaveIdle() {
   const heights = [30, 45, 60, 75, 90, 75, 55, 40, 60, 80, 65, 50, 70, 85, 60, 45, 35, 50];
+  const tickerText = "MONITORING SOLAR ACTIVITY · MONITORING SOLAR ACTIVITY · ";
+
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-10 select-none">
+    <div className="flex flex-col items-center justify-center gap-4 py-10 select-none overflow-hidden w-full">
       {/* waveform */}
       <div className="flex items-end gap-[3px]" style={{ height: 52 }}>
         {heights.map((h, i) => (
@@ -60,14 +63,25 @@ function WaveIdle() {
           />
         ))}
       </div>
-      <p className="text-[11px] font-mono tracking-widest uppercase" style={{ color: "var(--muted)" }}>
-        Monitoring solar activity
-      </p>
+
+      {/* scrolling ticker */}
+      <div className="w-full overflow-hidden" style={{ maxWidth: 280 }}>
+        <div
+          className="whitespace-nowrap text-[10px] font-mono tracking-[0.15em] uppercase"
+          style={{
+            color: "var(--muted)",
+            display: "inline-block",
+            animation: "ticker-scroll 12s linear infinite",
+          }}
+        >
+          {tickerText}{tickerText}
+        </div>
+      </div>
     </div>
   );
 }
 
-export default function ForecasterPanel({ data, loading, active, dimmed }: Props) {
+export default function ForecasterPanel({ data, loading, active, dimmed, onSelectItem }: Props) {
   const displayed = data?.items?.slice(0, 8) ?? [];
   const overflow  = (data?.items?.length ?? 0) - 8;
 
@@ -117,8 +131,9 @@ export default function ForecasterPanel({ data, loading, active, dimmed }: Props
             {displayed.map((f, i) => (
               <div
                 key={i}
-                className="flex gap-3 items-start rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.04]"
+                className="flex gap-3 items-start rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.06] cursor-pointer"
                 style={{ background: "rgba(255,255,255,0.035)", border: "1px solid var(--border)" }}
+                onClick={() => onSelectItem?.(f)}
               >
                 {/* class badge */}
                 <span

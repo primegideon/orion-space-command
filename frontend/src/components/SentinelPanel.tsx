@@ -22,6 +22,8 @@ interface Props {
   data: SentinelData | null;
   loading: boolean;
   active: boolean;
+  dimmed?: boolean;
+  onSelectItem?: (item: AsteroidItem) => void;
 }
 
 function fmt(n: number | null, decimals = 0): string {
@@ -32,88 +34,197 @@ function fmt(n: number | null, decimals = 0): string {
   });
 }
 
-export default function SentinelPanel({ data, loading, active }: Props) {
-  const borderClass = active
-    ? "border-cyan-400 panel-glow-cyan"
-    : "border-[var(--panel-border)]";
-  const opacityClass = !active && data === null && !loading ? "opacity-100" : !active && (data !== null || loading) ? "opacity-60" : "opacity-100";
-
-  const displayed = data?.items?.slice(0, 10) ?? [];
-  const overflow = (data?.items?.length ?? 0) - 10;
+/* ── Radar sweep idle animation ──────────────────────────────────────────── */
+function RadarIdle() {
+  // random blip positions (deterministic so no hydration mismatch)
+  const blips = [
+    { x: 62, y: 38, delay: "0s",    dur: "3.2s" },
+    { x: 30, y: 55, delay: "1.1s",  dur: "4s" },
+    { x: 70, y: 68, delay: "2.4s",  dur: "2.8s" },
+  ];
 
   return (
-    <div
-      className={`rounded-lg border bg-[var(--panel-bg)] p-4 flex flex-col gap-3 transition-all duration-300 ${borderClass} ${opacityClass}`}
-    >
-      {/* Header */}
-      <div>
-        <h2 className="text-cyan-400 font-mono font-bold text-sm tracking-widest uppercase">
-          🛰 SENTINEL
-        </h2>
-        <p className="text-[var(--muted)] text-xs mt-0.5">Near-Earth Asteroid Tracker</p>
+    <div className="flex flex-col items-center justify-center gap-4 py-10 select-none">
+      {/* radar dish */}
+      <div className="relative w-24 h-24">
+        {/* rings */}
+        {[24, 40, 56, 72].map((d, i) => (
+          <span
+            key={d}
+            className="absolute rounded-full border border-[var(--cyan)]"
+            style={{
+              width: d, height: d,
+              top: "50%", left: "50%",
+              transform: "translate(-50%,-50%)",
+              opacity: 0.06 + i * 0.04,
+            }}
+          />
+        ))}
+        {/* ping ripple */}
+        <span
+          className="absolute rounded-full border border-[var(--cyan)] animate-[radar-ping_2s_ease-out_infinite]"
+          style={{ width: 72, height: 72, top: "50%", left: "50%", transform: "translate(-50%,-50%)", opacity: 0 }}
+        />
+        {/* sweep wedge */}
+        <div
+          className="absolute inset-0 animate-[radar-sweep_4s_linear_infinite]"
+          style={{ transformOrigin: "50% 50%" }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: "50%", left: "50%",
+              width: "48%", height: "2px",
+              transformOrigin: "0% 50%",
+              background: "linear-gradient(90deg, var(--cyan), transparent)",
+              borderRadius: "1px",
+              opacity: 0.85,
+            }}
+          />
+        </div>
+        {/* random blips */}
+        {blips.map((b, i) => (
+          <span
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              width: 3, height: 3,
+              left: `${b.x}%`, top: `${b.y}%`,
+              transform: "translate(-50%,-50%)",
+              background: "var(--cyan)",
+              boxShadow: "0 0 4px var(--cyan)",
+              animation: `blip-appear ${b.dur} ${b.delay} ease-in-out infinite`,
+            }}
+          />
+        ))}
+        {/* center dot */}
+        <span
+          className="absolute rounded-full"
+          style={{
+            width: 6, height: 6,
+            top: "50%", left: "50%",
+            transform: "translate(-50%,-50%)",
+            background: "var(--cyan)",
+            boxShadow: "0 0 8px var(--cyan)",
+          }}
+        />
       </div>
 
-      {/* Loading */}
+      {/* SCANNING label with step-animation cursor */}
+      <div className="flex items-center gap-1.5">
+        <p className="text-[11px] font-mono tracking-widest uppercase" style={{ color: "var(--muted)" }}>
+          Scanning
+        </p>
+        <span
+          className="inline-block w-[7px] h-[11px] rounded-sm"
+          style={{
+            background: "var(--cyan)",
+            opacity: 0.8,
+            animation: "cursor-blink-sentinel 1.1s step-end infinite",
+          }}
+        />
+      </div>
+
+      <style>{`
+        @keyframes blip-appear {
+          0%, 100% { opacity: 0; transform: translate(-50%,-50%) scale(0.5); }
+          30%, 70%  { opacity: 0.9; transform: translate(-50%,-50%) scale(1); }
+        }
+        @keyframes cursor-blink-sentinel {
+          0%, 100% { opacity: 0.8; }
+          50%       { opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default function SentinelPanel({ data, loading, active, dimmed, onSelectItem }: Props) {
+  const displayed = data?.items?.slice(0, 10) ?? [];
+  const overflow  = (data?.items?.length ?? 0) - 10;
+
+  return (
+    <div className={`glass flex flex-col gap-4 p-5 transition-all duration-400
+      ${active ? "glass-active-cyan" : ""}
+      ${dimmed ? "panel-inactive" : ""}`}>
+
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <span className="label">Sentinel</span>
+          <h2 className="font-mono font-semibold text-[15px] leading-snug mt-0.5"
+            style={{ color: "var(--cyan)" }}>
+            Near-Earth Objects
+          </h2>
+        </div>
+        <span className="label px-2 py-0.5 rounded-full"
+          style={{ background: "var(--cyan-dim)", color: "var(--cyan)" }}>
+          NeoWs
+        </span>
+      </div>
+
+      {/* Loading skeletons */}
       {loading && (
-        <div className="flex flex-col gap-2 mt-1">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-6 rounded bg-slate-700 animate-pulse" />
+        <div className="flex flex-col gap-2 animate-fade-in">
+          {[100, 85, 70, 90, 60].map((w, i) => (
+            <div key={i} className="skeleton h-5" style={{ width: `${w}%` }} />
           ))}
         </div>
       )}
 
       {/* Error */}
       {!loading && data?.error && (
-        <p className="text-red-400 text-xs">{data.error}</p>
+        <p className="text-[var(--red)] text-xs font-mono">{data.error}</p>
       )}
 
-      {/* Empty state */}
-      {!loading && !data && (
-        <div className="flex flex-col items-center justify-center py-8 gap-2">
-          <span className="text-3xl opacity-30">🛰</span>
-          <p className="text-[var(--muted)] text-xs">Awaiting transmission...</p>
-        </div>
-      )}
+      {/* Idle */}
+      {!loading && !data && <RadarIdle />}
 
-      {/* Data */}
+      {/* Active data */}
       {!loading && data && !data.error && (
-        <>
-          <p className="text-cyan-200 text-xs leading-relaxed">{data.summary}</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
+        <div className="flex flex-col gap-3 animate-fade-in">
+          <p className="text-[13px] leading-relaxed" style={{ color: "#a0c4d8" }}>{data.summary}</p>
+
+          <div className="overflow-x-auto scrollbar-thin -mx-1 px-1">
+            <table className="w-full text-[12px] border-collapse">
               <thead>
-                <tr className="text-[var(--muted)] border-b border-[var(--panel-border)]">
-                  {["NAME", "DATE", "MISS DIST.", "DIAMETER", "VELOCITY", "HAZARD"].map(
-                    (h) => (
-                      <th key={h} className="text-left py-1 pr-3 font-normal whitespace-nowrap">
-                        {h}
-                      </th>
-                    )
-                  )}
+                <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                  {["Name","Date","Miss Dist.","Ø km","km/h","Hazard"].map((h) => (
+                    <th key={h} className="text-left py-1.5 pr-3 font-mono font-normal whitespace-nowrap"
+                      style={{ color: "var(--muted)" }}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {displayed.map((a, i) => (
                   <tr
                     key={i}
-                    className="border-b border-[var(--panel-border)] hover:bg-white/5"
+                    className="transition-colors hover:bg-white/[0.05] cursor-pointer"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                    onClick={() => onSelectItem?.(a)}
                   >
-                    <td className="py-1.5 pr-3 font-mono text-slate-200 whitespace-nowrap">{a.name}</td>
-                    <td className="py-1.5 pr-3 font-mono whitespace-nowrap">{a.close_approach_date}</td>
-                    <td className="py-1.5 pr-3 font-mono whitespace-nowrap">
-                      {fmt(a.miss_distance_km)} km
+                    <td className="py-2 pr-3 font-mono text-white/80 whitespace-nowrap">{a.name}</td>
+                    <td className="py-2 pr-3 font-mono whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                      {a.close_approach_date}
                     </td>
-                    <td className="py-1.5 pr-3 font-mono whitespace-nowrap">
-                      {fmt(a.estimated_diameter_km_max, 3)} km
+                    <td className="py-2 pr-3 font-mono whitespace-nowrap" style={{ color: "var(--cyan)" }}>
+                      {fmt(a.miss_distance_km)}<span className="opacity-50 ml-0.5 text-[10px]">km</span>
                     </td>
-                    <td className="py-1.5 pr-3 font-mono whitespace-nowrap">
-                      {fmt(a.relative_velocity_kmh)} km/h
+                    <td className="py-2 pr-3 font-mono whitespace-nowrap text-white/70">
+                      {fmt(a.estimated_diameter_km_max, 3)}
                     </td>
-                    <td className="py-1.5">
+                    <td className="py-2 pr-3 font-mono whitespace-nowrap text-white/70">
+                      {fmt(a.relative_velocity_kmh)}
+                    </td>
+                    <td className="py-2">
                       {a.is_potentially_hazardous ? (
-                        <span className="text-red-400 font-bold">⚠</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold"
+                          style={{ background: "var(--red-dim)", color: "var(--red)" }}>PHO</span>
                       ) : (
-                        <span className="text-green-400">✓</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono"
+                          style={{ background: "var(--emerald-dim)", color: "var(--emerald)" }}>safe</span>
                       )}
                     </td>
                   </tr>
@@ -121,10 +232,13 @@ export default function SentinelPanel({ data, loading, active }: Props) {
               </tbody>
             </table>
           </div>
+
           {overflow > 0 && (
-            <p className="text-[var(--muted)] text-xs">and {overflow} more...</p>
+            <p className="text-[11px] font-mono" style={{ color: "var(--muted)" }}>
+              +{overflow} more objects
+            </p>
           )}
-        </>
+        </div>
       )}
     </div>
   );

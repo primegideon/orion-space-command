@@ -12,92 +12,198 @@ interface Props {
   data: ArchivistData | null;
   loading: boolean;
   active: boolean;
+  dimmed?: boolean;
 }
 
-function confidenceBadge(c: string): string {
+function confidenceStyle(c: string): React.CSSProperties {
   const l = c.toLowerCase();
-  if (l === "high") return "bg-green-700 text-green-200";
-  if (l === "medium") return "bg-amber-700 text-amber-200";
-  return "bg-red-800 text-red-200";
+  if (l === "high")   return { background: "var(--emerald-dim)", color: "var(--emerald)", border: "1px solid rgba(52,211,153,0.3)" };
+  if (l === "medium") return { background: "var(--amber-dim)",   color: "var(--amber)",   border: "1px solid rgba(251,191,36,0.3)" };
+  return                     { background: "var(--red-dim)",     color: "var(--red)",     border: "1px solid rgba(248,113,113,0.3)" };
 }
 
-export default function ArchivistPanel({ data, loading, active }: Props) {
-  const borderClass = active
-    ? "border-green-400 panel-glow-green"
-    : "border-[var(--panel-border)]";
-  const opacityClass =
-    !active && (data !== null || loading) ? "opacity-60" : "opacity-100";
+/* ── Document-scan idle ──────────────────────────────────────────────────── */
+// Simulates pages of text being read by a scanning highlight bar —
+// totally distinct from the bar-chart metaphors used by Forecaster / Sentinel.
+function DocScanIdle() {
+  // fake "text" lines: widths give natural paragraph rhythm
+  const lines = [92, 85, 78, 95, 60, 88, 72, 50];
 
   return (
-    <div
-      className={`rounded-lg border bg-[var(--panel-bg)] p-4 flex flex-col gap-3 transition-all duration-300 ${borderClass} ${opacityClass}`}
-    >
-      {/* Header */}
-      <div>
-        <h2 className="text-green-400 font-mono font-bold text-sm tracking-widest uppercase">
-          📚 ARCHIVIST
-        </h2>
-        <p className="text-[var(--muted)] text-xs mt-0.5">Astrophysics Research RAG</p>
-      </div>
+    <div className="flex flex-col items-center justify-center gap-5 py-8 select-none w-full">
+      {/* document card */}
+      <div
+        className="relative w-full overflow-hidden rounded-lg"
+        style={{
+          maxWidth: 240,
+          padding: "14px 16px",
+          background: "rgba(52,211,153,0.04)",
+          border: "1px solid rgba(52,211,153,0.12)",
+        }}
+      >
+        {/* indexed chunks badge */}
+        <div
+          className="absolute top-2 right-2 z-10 font-mono text-[9px] tracking-wide px-1.5 py-0.5 rounded"
+          style={{
+            background: "rgba(52,211,153,0.12)",
+            border: "1px solid rgba(52,211,153,0.25)",
+            color: "var(--emerald)",
+          }}
+        >
+          939 chunks indexed
+        </div>
+        {/* scan-line that travels top→bottom on repeat */}
+        <div
+          className="absolute left-0 right-0 pointer-events-none"
+          style={{
+            height: 28,
+            background: "linear-gradient(180deg, transparent 0%, rgba(52,211,153,0.13) 40%, rgba(52,211,153,0.13) 60%, transparent 100%)",
+            animation: "doc-scan 2.4s linear infinite",
+            top: 0,
+          }}
+        />
 
-      {/* Loading */}
-      {loading && (
-        <div className="flex flex-col gap-2 mt-1">
-          {[0, 1, 2, 3].map((i) => (
+        {/* fake text lines */}
+        <div className="flex flex-col gap-[7px]">
+          {/* section header stub */}
+          <div className="rounded-sm mb-1"
+            style={{ width: "55%", height: 7, background: "rgba(52,211,153,0.35)" }} />
+          {lines.map((w, i) => (
             <div
               key={i}
-              className={`h-3 rounded bg-slate-700 animate-pulse`}
-              style={{ width: `${90 - i * 10}%` }}
+              className="rounded-sm"
+              style={{
+                width: `${w}%`,
+                height: 5,
+                background: i % 3 === 2
+                  ? "rgba(52,211,153,0.12)"   // short line — paragraph break feel
+                  : "rgba(255,255,255,0.10)",
+              }}
             />
+          ))}
+          {/* second section header stub */}
+          <div className="rounded-sm mt-1"
+            style={{ width: "40%", height: 7, background: "rgba(52,211,153,0.25)" }} />
+          {[88, 76, 65].map((w, i) => (
+            <div
+              key={`b${i}`}
+              className="rounded-sm"
+              style={{
+                width: `${w}%`,
+                height: 5,
+                background: "rgba(255,255,255,0.10)",
+              }}
+            />
+          ))}
+        </div>
+
+        {/* cursor blink at bottom-right of doc */}
+        <div
+          className="absolute bottom-3 right-4"
+          style={{
+            width: 6, height: 11,
+            background: "var(--emerald)",
+            borderRadius: 1,
+            opacity: 0.9,
+            animation: "cursor-blink 1.1s step-end infinite",
+          }}
+        />
+      </div>
+
+      <p className="text-[11px] font-mono tracking-widest uppercase" style={{ color: "var(--muted)" }}>
+        Indexing knowledge base
+      </p>
+
+      {/* keyframes scoped here — safe in Next.js "use client" */}
+      <style>{`
+        @keyframes doc-scan {
+          0%   { top: -28px; }
+          100% { top: 100%; }
+        }
+        @keyframes cursor-blink {
+          0%, 100% { opacity: 0.9; }
+          50%       { opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default function ArchivistPanel({ data, loading, active, dimmed }: Props) {
+  return (
+    <div className={`glass flex flex-col gap-4 p-5 transition-all duration-400
+      ${active ? "glass-active-emerald" : ""}
+      ${dimmed ? "panel-inactive" : ""}`}>
+
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <span className="label">Archivist</span>
+          <h2 className="font-mono font-semibold text-[15px] leading-snug mt-0.5"
+            style={{ color: "var(--emerald)" }}>
+            Research RAG
+          </h2>
+        </div>
+        <span className="label px-2 py-0.5 rounded-full"
+          style={{ background: "var(--emerald-dim)", color: "var(--emerald)" }}>
+          Docling
+        </span>
+      </div>
+
+      {/* Loading skeletons */}
+      {loading && (
+        <div className="flex flex-col gap-2 animate-fade-in">
+          {[100, 92, 84, 76, 60, 40].map((w, i) => (
+            <div key={i} className="skeleton h-3" style={{ width: `${w}%` }} />
           ))}
         </div>
       )}
 
       {/* Error */}
       {!loading && data?.error && (
-        <p className="text-red-400 text-xs">{data.error}</p>
+        <p className="text-[var(--red)] text-xs font-mono">{data.error}</p>
       )}
 
-      {/* Empty state */}
-      {!loading && !data && (
-        <div className="flex flex-col items-center justify-center py-8 gap-2">
-          <span className="text-3xl opacity-30">📚</span>
-          <p className="text-[var(--muted)] text-xs">Awaiting transmission...</p>
-        </div>
-      )}
+      {/* Idle */}
+      {!loading && !data && <DocScanIdle />}
 
-      {/* Data */}
+      {/* Active data */}
       {!loading && data && !data.error && (
-        <>
-          {/* Answer */}
-          <div className="border-l-2 border-green-500 pl-3">
-            <p className="text-green-100 text-xs leading-relaxed whitespace-pre-wrap">
-              {data.answer}
-            </p>
+        <div className="flex flex-col gap-4 animate-fade-in">
+
+          {/* Answer block */}
+          <div className="rounded-xl p-4"
+            style={{ background: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.12)" }}>
+            <p className="text-[13px] leading-[1.75] text-white/80 whitespace-pre-wrap">{data.answer}</p>
           </div>
 
-          {/* Confidence */}
+          {/* Confidence badge */}
           {data.confidence && (
-            <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono" style={{ color: "var(--muted)" }}>Confidence</span>
               <span
-                className={`inline-block text-xs font-mono px-2 py-0.5 rounded ${confidenceBadge(
-                  data.confidence
-                )}`}
+                className="inline-block text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md"
+                style={confidenceStyle(data.confidence)}
               >
-                Confidence: {data.confidence}
+                {data.confidence}
               </span>
             </div>
           )}
 
           {/* Sources */}
           {data.sources && data.sources.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <p className="text-[var(--muted)] text-xs font-semibold">Sources consulted:</p>
+            <div className="flex flex-col gap-2">
+              <span className="label">Sources consulted</span>
               <div className="flex flex-wrap gap-1.5">
                 {data.sources.map((s, i) => (
                   <span
                     key={i}
-                    className="inline-block bg-slate-700 text-slate-300 text-xs font-mono px-2 py-0.5 rounded"
+                    className="inline-block text-[11px] font-mono px-2.5 py-1 rounded-lg"
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid var(--border)",
+                      color: "var(--muted)",
+                    }}
                   >
                     {s}
                   </span>
@@ -105,7 +211,7 @@ export default function ArchivistPanel({ data, loading, active }: Props) {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

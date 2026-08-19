@@ -106,6 +106,33 @@ body {
   border-radius: 6px;
 }
 
+/* Ticker for Forecaster idle */
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* Panel entry animation */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.4, 0, 0.2, 1) both; }
+
+/* Glow pulse for active badges */
+@keyframes badge-glow {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+.animate-badge-glow { animation: badge-glow 1.2s ease-in-out infinite; }
+
+/* Loading input glow */
+@keyframes input-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(56,189,248,0.15), inset 0 0 20px rgba(56,189,248,0.03); }
+  50%       { box-shadow: 0 0 0 1px rgba(56,189,248,0.40), inset 0 0 20px rgba(56,189,248,0.07); }
+}
+.glass-loading { animation: input-glow 1.8s ease-in-out infinite; }
+
 /* ─── Utilities ──────────────────────────────────────────────────────────── */
 @layer utilities {
   .text-balance { text-wrap: balance; }
