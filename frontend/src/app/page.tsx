@@ -261,8 +261,8 @@ export default function Home() {
       <footer className="px-6 py-3 text-center text-[11px] font-mono tracking-wide"
         style={{ color: "var(--muted)", borderTop: "1px solid var(--border)" }}>
         Powered by{" "}
-        <span className="text-white/70 font-semibold">IBM watsonx Granite</span>
-        {" "}·{" "}LangFlow · NASA APIs · IBM Docling
+        <span className="text-white/70 font-semibold">IBM watsonx</span>
+        {" "}·{" "}Llama-4 Maverick · LangFlow · NASA APIs · IBM Docling
       </footer>
 
       {/* ── Detail panel ───────────────────────────────────────────────── */}

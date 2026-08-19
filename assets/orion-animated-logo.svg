@@ -1,0 +1,263 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 320" width="900" height="320" style="background:#000000;">
+
+  <defs>
+
+    <!-- Deep space background gradient -->
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%"   stop-color="#0a0f1e" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="1"/>
+    </radialGradient>
+
+    <!-- Core star glow -->
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="40%"  stop-color="#7dd4fc" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#0284c7" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Orbit ring gradient -->
+    <linearGradient id="ringGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#06b6d4" stop-opacity="0"/>
+      <stop offset="40%"  stop-color="#06b6d4" stop-opacity="0.9"/>
+      <stop offset="60%"  stop-color="#7dd4fc" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="ringGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#818cf8" stop-opacity="0"/>
+      <stop offset="45%"  stop-color="#818cf8" stop-opacity="0.8"/>
+      <stop offset="55%"  stop-color="#c4b5fd" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="ringGrad3" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#34d399" stop-opacity="0"/>
+      <stop offset="45%"  stop-color="#34d399" stop-opacity="0.7"/>
+      <stop offset="55%"  stop-color="#6ee7b7" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#34d399" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Telemetry node glow filter -->
+    <filter id="nodeGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Soft text glow -->
+    <filter id="textGlow" x="-20%" y="-60%" width="140%" height="220%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Ambient halo filter -->
+    <filter id="halo" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Clipping paths for orbit arcs (top half / bottom half) -->
+    <clipPath id="clipTop">
+      <rect x="0" y="0" width="900" height="160"/>
+    </clipPath>
+    <clipPath id="clipBottom">
+      <rect x="0" y="160" width="900" height="160"/>
+    </clipPath>
+
+  </defs>
+
+  <!-- ══════════════════════════════════════════
+       BACKGROUND
+       ══════════════════════════════════════════ -->
+  <rect width="900" height="320" fill="url(#bgGlow)"/>
+
+  <!-- Distant star field (static tiny dots) -->
+  <g opacity="0.55">
+    <circle cx="42"  cy="18"  r="0.8" fill="#ffffff"/>
+    <circle cx="130" cy="55"  r="0.6" fill="#c7d2fe"/>
+    <circle cx="240" cy="12"  r="0.9" fill="#ffffff"/>
+    <circle cx="320" cy="80"  r="0.5" fill="#a5f3fc"/>
+    <circle cx="410" cy="22"  r="0.7" fill="#ffffff"/>
+    <circle cx="510" cy="60"  r="0.6" fill="#d8b4fe"/>
+    <circle cx="600" cy="15"  r="0.8" fill="#ffffff"/>
+    <circle cx="710" cy="45"  r="0.5" fill="#a5f3fc"/>
+    <circle cx="790" cy="30"  r="0.9" fill="#ffffff"/>
+    <circle cx="860" cy="72"  r="0.6" fill="#c7d2fe"/>
+    <circle cx="65"  cy="270" r="0.7" fill="#ffffff"/>
+    <circle cx="170" cy="295" r="0.5" fill="#a5f3fc"/>
+    <circle cx="280" cy="280" r="0.8" fill="#ffffff"/>
+    <circle cx="390" cy="305" r="0.6" fill="#d8b4fe"/>
+    <circle cx="500" cy="275" r="0.7" fill="#ffffff"/>
+    <circle cx="620" cy="300" r="0.5" fill="#a5f3fc"/>
+    <circle cx="730" cy="285" r="0.9" fill="#ffffff"/>
+    <circle cx="840" cy="270" r="0.6" fill="#c7d2fe"/>
+    <!-- mid-field stars -->
+    <circle cx="95"  cy="140" r="0.6" fill="#ffffff"/>
+    <circle cx="200" cy="155" r="0.5" fill="#a5f3fc"/>
+    <circle cx="380" cy="130" r="0.7" fill="#ffffff"/>
+    <circle cx="700" cy="160" r="0.6" fill="#d8b4fe"/>
+    <circle cx="820" cy="135" r="0.5" fill="#ffffff"/>
+  </g>
+
+  <!-- ══════════════════════════════════════════
+       ORBITAL SYSTEM  (center x=160, y=160)
+       ══════════════════════════════════════════ -->
+
+  <!-- Ambient halo around core -->
+  <circle cx="160" cy="160" r="60" fill="#0284c7" opacity="0.08" filter="url(#halo)"/>
+
+  <!-- ORBIT RING 1 — equatorial (cyan), tilted ~15 deg -->
+  <g transform="translate(160,160) rotate(-10)">
+    <!-- faint full ellipse track -->
+    <ellipse cx="0" cy="0" rx="110" ry="30" fill="none" stroke="#06b6d4" stroke-width="0.4" opacity="0.18"/>
+    <!-- bright sweeping arc (clipped top half) -->
+    <ellipse cx="0" cy="0" rx="110" ry="30" fill="none"
+             stroke="url(#ringGrad1)" stroke-width="1.4" opacity="0.95"/>
+    <!-- animated travelling dot on ring 1 -->
+    <circle r="3.5" fill="#7dd4fc" filter="url(#nodeGlow)">
+      <animateMotion dur="6s" repeatCount="indefinite" rotate="auto">
+        <mpath href="#orbit1Path"/>
+      </animateMotion>
+    </circle>
+  </g>
+  <!-- hidden path for animateMotion ring 1 -->
+  <path id="orbit1Path"
+        d="M 270,160 A 110,30 0 1 0 50,160 A 110,30 0 1 0 270,160"
+        transform="translate(0,0) rotate(-10,160,160)"
+        fill="none" stroke="none"/>
+
+  <!-- ORBIT RING 2 — inclined (indigo), tilted ~60 deg -->
+  <g transform="translate(160,160) rotate(60)">
+    <ellipse cx="0" cy="0" rx="95" ry="28" fill="none" stroke="#818cf8" stroke-width="0.4" opacity="0.18"/>
+    <ellipse cx="0" cy="0" rx="95" ry="28" fill="none"
+             stroke="url(#ringGrad2)" stroke-width="1.4" opacity="0.90"/>
+    <circle r="3" fill="#c4b5fd" filter="url(#nodeGlow)">
+      <animateMotion dur="9s" repeatCount="indefinite" rotate="auto">
+        <mpath href="#orbit2Path"/>
+      </animateMotion>
+    </circle>
+  </g>
+  <path id="orbit2Path"
+        d="M 255,160 A 95,28 0 1 0 65,160 A 95,28 0 1 0 255,160"
+        transform="rotate(60,160,160)"
+        fill="none" stroke="none"/>
+
+  <!-- ORBIT RING 3 — polar (emerald), tilted ~-50 deg -->
+  <g transform="translate(160,160) rotate(-50)">
+    <ellipse cx="0" cy="0" rx="80" ry="22" fill="none" stroke="#34d399" stroke-width="0.4" opacity="0.18"/>
+    <ellipse cx="0" cy="0" rx="80" ry="22" fill="none"
+             stroke="url(#ringGrad3)" stroke-width="1.2" opacity="0.85"/>
+    <circle r="2.5" fill="#6ee7b7" filter="url(#nodeGlow)">
+      <animateMotion dur="7.5s" repeatCount="indefinite" rotate="auto">
+        <mpath href="#orbit3Path"/>
+      </animateMotion>
+    </circle>
+  </g>
+  <path id="orbit3Path"
+        d="M 240,160 A 80,22 0 1 0 80,160 A 80,22 0 1 0 240,160"
+        transform="rotate(-50,160,160)"
+        fill="none" stroke="none"/>
+
+  <!-- CENTRAL STAR / CORE -->
+  <!-- outer ambient pulse -->
+  <circle cx="160" cy="160" r="22" fill="#0284c7" opacity="0.15">
+    <animate attributeName="r"     values="20;28;20" dur="3.5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.15;0.04;0.15" dur="3.5s" repeatCount="indefinite"/>
+  </circle>
+  <!-- mid ring -->
+  <circle cx="160" cy="160" r="13" fill="url(#coreGlow)" opacity="0.7">
+    <animate attributeName="opacity" values="0.7;1;0.7" dur="3.5s" repeatCount="indefinite"/>
+  </circle>
+  <!-- hard core -->
+  <circle cx="160" cy="160" r="6" fill="#ffffff" filter="url(#nodeGlow)"/>
+
+  <!-- TELEMETRY NODES — static constellation points -->
+  <!-- node: asteroid belt arc -->
+  <circle cx="100" cy="108" r="2.8" fill="#06b6d4" filter="url(#nodeGlow)" opacity="0.9">
+    <animate attributeName="opacity" values="0.9;0.3;0.9" dur="2.8s" begin="0s"   repeatCount="indefinite"/>
+  </circle>
+  <circle cx="220" cy="108" r="2.2" fill="#06b6d4" filter="url(#nodeGlow)" opacity="0.7">
+    <animate attributeName="opacity" values="0.7;0.2;0.7" dur="3.1s" begin="0.5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="220" cy="212" r="2.5" fill="#818cf8" filter="url(#nodeGlow)" opacity="0.85">
+    <animate attributeName="opacity" values="0.85;0.25;0.85" dur="4.0s" begin="1.2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="100" cy="212" r="2.0" fill="#34d399" filter="url(#nodeGlow)" opacity="0.75">
+    <animate attributeName="opacity" values="0.75;0.2;0.75" dur="3.6s" begin="0.8s" repeatCount="indefinite"/>
+  </circle>
+  <!-- faint connector lines between nodes and core -->
+  <line x1="160" y1="160" x2="100" y2="108" stroke="#06b6d4" stroke-width="0.4" opacity="0.2"/>
+  <line x1="160" y1="160" x2="220" y2="108" stroke="#06b6d4" stroke-width="0.4" opacity="0.2"/>
+  <line x1="160" y1="160" x2="220" y2="212" stroke="#818cf8" stroke-width="0.4" opacity="0.2"/>
+  <line x1="160" y1="160" x2="100" y2="212" stroke="#34d399" stroke-width="0.4" opacity="0.2"/>
+
+  <!-- ══════════════════════════════════════════
+       WORDMARK — ORION
+       ══════════════════════════════════════════ -->
+
+  <!-- ORION primary wordmark -->
+  <text x="330" y="148"
+        font-family="'Segoe UI', system-ui, -apple-system, sans-serif"
+        font-size="88"
+        font-weight="800"
+        letter-spacing="12"
+        fill="#ffffff"
+        filter="url(#textGlow)"
+        opacity="0.97">ORION</text>
+
+  <!-- Subtle cyan underline rule -->
+  <line x1="330" y1="162" x2="820" y2="162" stroke="#06b6d4" stroke-width="1" opacity="0.45"/>
+
+  <!-- Subtitle tagline -->
+  <text x="332" y="188"
+        font-family="'Segoe UI', 'Courier New', monospace"
+        font-size="13"
+        font-weight="400"
+        letter-spacing="5.5"
+        fill="#7dd4fc"
+        opacity="0.75">ORBITAL RESEARCH &amp; INTELLIGENCE ORCHESTRATION NETWORK</text>
+
+  <!-- Bottom micro-label — IBM watsonx powered -->
+  <text x="332" y="230"
+        font-family="'Segoe UI', system-ui, sans-serif"
+        font-size="11"
+        font-weight="300"
+        letter-spacing="3"
+        fill="#818cf8"
+        opacity="0.55">POWERED BY IBM WATSONX · NASA APIs · LANGFLOW</text>
+
+  <!-- Decorative vertical accent bar left of wordmark -->
+  <rect x="316" y="110" width="2" height="105" fill="#06b6d4" opacity="0.5" rx="1"/>
+
+  <!-- Pulse animation on accent bar -->
+  <rect x="316" y="110" width="2" height="105" fill="#7dd4fc" opacity="0" rx="1">
+    <animate attributeName="opacity" values="0;0.6;0" dur="4s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- Top-right corner decoration: signal strength bars -->
+  <g transform="translate(840, 42)" opacity="0.5">
+    <rect x="0"  y="14" width="5" height="8"  fill="#06b6d4" rx="1"/>
+    <rect x="8"  y="9"  width="5" height="13" fill="#06b6d4" rx="1"/>
+    <rect x="16" y="4"  width="5" height="18" fill="#06b6d4" rx="1"/>
+    <rect x="24" y="0"  width="5" height="22" fill="#7dd4fc" rx="1">
+      <animate attributeName="opacity" values="1;0.2;1" dur="2.2s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- Bottom-right: scan line decoration -->
+  <g opacity="0.12">
+    <line x1="580" y1="268" x2="880" y2="268" stroke="#06b6d4" stroke-width="0.5"/>
+    <line x1="580" y1="274" x2="880" y2="274" stroke="#06b6d4" stroke-width="0.5"/>
+    <line x1="580" y1="280" x2="880" y2="280" stroke="#06b6d4" stroke-width="0.5"/>
+  </g>
+
+</svg>
