@@ -2,29 +2,126 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design Tokens ──────────────────────────────────────────────────────── */
 :root {
-  --background: #050a14;
-  --foreground: #e2e8f0;
-  --panel-bg: #0d1829;
-  --panel-border: #1e3a5f;
-  --accent-cyan: #00d4ff;
-  --accent-amber: #f59e0b;
-  --accent-green: #10b981;
-  --accent-red: #ef4444;
-  --muted: #64748b;
-  --font-mono: var(--font-geist-mono);
+  --bg:            #080c14;
+  --surface:       rgba(14, 20, 34, 0.72);
+  --surface-solid: #0e1422;
+  --border:        rgba(255, 255, 255, 0.07);
+  --border-active: rgba(255, 255, 255, 0.14);
+
+  --foreground:    #e8eaf0;
+  --muted:         #4a5568;
+  --subtle:        #2d3748;
+
+  /* accent palette — used sparingly for data vis only */
+  --cyan:          #38bdf8;
+  --cyan-dim:      rgba(56, 189, 248, 0.15);
+  --amber:         #fbbf24;
+  --amber-dim:     rgba(251, 191, 36, 0.15);
+  --emerald:       #34d399;
+  --emerald-dim:   rgba(52, 211, 153, 0.15);
+  --red:           #f87171;
+  --red-dim:       rgba(248, 113, 113, 0.18);
+
+  /* legacy aliases kept for component compat */
+  --background:    var(--bg);
+  --panel-bg:      var(--surface);
+  --panel-border:  var(--border);
+  --accent-cyan:   var(--cyan);
+  --accent-amber:  var(--amber);
+  --accent-green:  var(--emerald);
+  --accent-red:    var(--red);
+  --font-mono:     var(--font-geist-mono);
 }
+
+/* ─── Base ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background:  var(--bg);
+  color:       var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
-  min-height: 100vh;
+  font-size:   14px;
+  line-height: 1.6;
+  min-height:  100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* ─── Glassmorphism card ─────────────────────────────────────────────────── */
+.glass {
+  background:   var(--surface);
+  border:       1px solid var(--border);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-radius: 16px;
+}
+
+.glass-active-cyan   { border-color: rgba(56, 189, 248, 0.35) !important; box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.10), inset 0 1px 0 rgba(56, 189, 248, 0.06); }
+.glass-active-amber  { border-color: rgba(251, 191, 36, 0.35) !important; box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.10), inset 0 1px 0 rgba(251, 191, 36, 0.06); }
+.glass-active-emerald{ border-color: rgba(52, 211, 153, 0.35) !important; box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.10), inset 0 1px 0 rgba(52, 211, 153, 0.06); }
+
+.panel-inactive { opacity: 0.4; transition: opacity 0.4s ease; }
+
+/* ─── Keyframes ──────────────────────────────────────────────────────────── */
+
+/* Radar sweep */
+@keyframes radar-sweep {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes radar-ping {
+  0%   { transform: scale(0.4); opacity: 0.7; }
+  100% { transform: scale(1);   opacity: 0; }
+}
+
+/* Pulse wave (Forecaster) */
+@keyframes wave-pulse {
+  0%, 100% { transform: scaleY(0.25); opacity: 0.35; }
+  50%       { transform: scaleY(1);   opacity: 1; }
+}
+
+/* Data sort bars (Archivist) */
+@keyframes sort-bar {
+  0%, 100% { transform: scaleY(0.2); }
+  50%       { transform: scaleY(1); }
+}
+
+/* Subtle fade-in for content */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 0.35s ease both; }
+
+/* General pulse used in loading skeletons */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--subtle) 25%, #3a4a62 50%, var(--subtle) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite;
+  border-radius: 6px;
+}
+
+/* ─── Utilities ──────────────────────────────────────────────────────────── */
 @layer utilities {
   .text-balance { text-wrap: balance; }
-  .panel-glow-cyan { box-shadow: 0 0 20px rgba(0, 212, 255, 0.15); }
-  .panel-glow-amber { box-shadow: 0 0 20px rgba(245, 158, 11, 0.15); }
-  .panel-glow-green { box-shadow: 0 0 20px rgba(16, 185, 129, 0.15); }
+
+  .font-geist-mono { font-family: var(--font-geist-mono), monospace; }
+
+  .label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* thin scrollbar */
+  .scrollbar-thin::-webkit-scrollbar       { width: 4px; height: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--subtle); border-radius: 99px; }
 }

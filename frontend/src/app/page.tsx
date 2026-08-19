@@ -27,19 +27,30 @@ export default function Home() {
     setError(null);
     setResult(null);
 
+    const controller = new AbortController();
+    // 60 s hard timeout — LangFlow chains can be slow but shouldn't hang forever
+    const timer = setTimeout(() => controller.abort(), 60_000);
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: query.trim() }),
+        signal: controller.signal,
       });
-      const data: AgentResult = await res.json() as AgentResult;
+      clearTimeout(timer);
+      const data: AgentResult = (await res.json()) as AgentResult;
       setResult(data);
       if (data?.intent === "error") {
         setError((data as { intent: "error"; error: string }).error);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      clearTimeout(timer);
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setError("Request timed out after 60 s — is LangFlow running at localhost:7861?");
+      } else {
+        setError(e instanceof Error ? e.message : "Unknown error");
+      }
     } finally {
       setLoading(false);
     }
@@ -50,144 +61,127 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "var(--background)" }}>
-      {/* ── Header ── */}
-      <header className="border-b border-[var(--panel-border)] px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1
-            className="font-mono font-bold text-2xl tracking-[0.2em] uppercase"
-            style={{ color: "var(--accent-cyan)", textShadow: "0 0 18px rgba(0,212,255,0.4)" }}
-          >
-            ORION
-          </h1>
-          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-            Orbital Research &amp; Intelligence Orchestration Network
-          </p>
+    <div className="min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-3 glass"
+        style={{ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }}>
+
+        {/* Wordmark */}
+        <div className="flex items-center gap-3">
+          {/* hex icon */}
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <polygon
+              points="14,2 25,8 25,20 14,26 3,20 3,8"
+              stroke="var(--cyan)" strokeWidth="1.5" fill="none" opacity="0.8"
+            />
+            <polygon
+              points="14,7 21,11 21,18 14,22 7,18 7,11"
+              fill="var(--cyan)" opacity="0.18"
+            />
+            <circle cx="14" cy="14" r="2.5" fill="var(--cyan)" opacity="0.9" />
+          </svg>
+          <div>
+            <h1 className="font-mono font-bold text-base tracking-[0.22em] uppercase text-white leading-none">
+              ORION
+            </h1>
+            <p className="text-[10px] tracking-widest uppercase mt-0.5" style={{ color: "var(--muted)" }}>
+              Space Command
+            </p>
+          </div>
         </div>
 
-        {/* Status dots */}
-        <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted)" }}>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full bg-green-400" />
-            LANGFLOW ONLINE
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full bg-green-400" />
-            WATSONX ONLINE
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full bg-green-400" />
-            NASA API ONLINE
-          </span>
+        {/* Status indicators */}
+        <div className="hidden sm:flex items-center gap-5">
+          {[
+            { label: "LangFlow", ok: true },
+            { label: "watsonx",  ok: true },
+            { label: "NASA API", ok: true },
+          ].map(({ label, ok }) => (
+            <span key={label} className="flex items-center gap-1.5 text-[11px] font-mono tracking-wide" style={{ color: "var(--muted)" }}>
+              <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-emerald-400" : "bg-red-400"}`}
+                style={ok ? { boxShadow: "0 0 5px var(--emerald)" } : {}} />
+              {label}
+            </span>
+          ))}
         </div>
       </header>
 
-      {/* ── Main ── */}
-      <main className="flex-1 flex flex-col gap-6 px-6 py-6 max-w-screen-xl w-full mx-auto">
-        {/* Chat input bar */}
-        <div className="flex gap-3">
+      {/* ── Main ───────────────────────────────────────────────────────── */}
+      <main className="flex-1 flex flex-col gap-5 px-5 py-5 max-w-screen-xl w-full mx-auto">
+
+        {/* Query bar */}
+        <div className="glass flex gap-2 p-2" style={{ borderRadius: "14px" }}>
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
             disabled={loading}
-            placeholder="Enter mission query... (e.g. 'show me approaching asteroids')"
-            className="flex-1 rounded-lg px-4 py-2.5 text-sm font-mono outline-none disabled:opacity-50 transition-all"
-            style={{
-              background: "var(--panel-bg)",
-              border: "1px solid var(--panel-border)",
-              color: "var(--foreground)",
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = "var(--accent-cyan)";
-              e.currentTarget.style.boxShadow = "0 0 0 2px rgba(0,212,255,0.2)";
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = "var(--panel-border)";
-              e.currentTarget.style.boxShadow = "none";
-            }}
+            placeholder='Enter mission query — e.g. "show me approaching asteroids"'
+            className="flex-1 bg-transparent px-3 py-2 text-sm font-mono outline-none placeholder:text-[var(--muted)] disabled:opacity-50 text-[var(--foreground)]"
           />
           <button
             onClick={transmit}
             disabled={loading || !query.trim()}
-            className="px-5 py-2.5 rounded-lg text-sm font-mono font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+            className="px-5 py-2 rounded-[10px] text-xs font-mono font-semibold tracking-widest uppercase transition-all duration-200
+              disabled:opacity-25 disabled:saturate-0 disabled:cursor-not-allowed flex items-center gap-2 shrink-0"
             style={{
-              background: "var(--accent-cyan)",
-              color: "#050a14",
+              background: "var(--cyan)",
+              color: "#04090f",
             }}
           >
             {loading ? (
               <>
-                <svg
-                  className="w-4 h-4 animate-spin"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z" />
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                  <path className="opacity-80" fill="currentColor"
+                    d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z" />
                 </svg>
-                ROUTING...
+                Routing
               </>
-            ) : (
-              "TRANSMIT"
-            )}
+            ) : "Transmit"}
           </button>
         </div>
 
         {/* Error banner */}
         {error && (
-          <div
-            className="rounded-lg px-4 py-3 text-sm font-mono border"
-            style={{
-              background: "rgba(239,68,68,0.1)",
-              borderColor: "var(--accent-red)",
-              color: "#fca5a5",
-            }}
-          >
-            ⚠ {error}
+          <div className="glass rounded-xl px-4 py-3 text-sm font-mono animate-fade-in break-words overflow-wrap-anywhere"
+            style={{ borderColor: "rgba(248,113,113,0.3)", color: "var(--red)", background: "var(--red-dim)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+            <span className="opacity-70 mr-2">⚠</span>{error}
           </div>
         )}
 
-        {/* Three-panel grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
+        {/* ── Bento grid ─────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 items-start">
           <SentinelPanel
             data={result?.intent === "sentinel" ? (result as SentinelData) : null}
-            loading={loading}
+            loading={loading && (!activeIntent || activeIntent === "sentinel")}
             active={activeIntent === "sentinel" || activeIntent === null}
+            dimmed={activeIntent !== null && activeIntent !== "sentinel"}
           />
           <ForecasterPanel
             data={result?.intent === "forecaster" ? (result as ForecasterData) : null}
-            loading={loading}
+            loading={loading && (!activeIntent || activeIntent === "forecaster")}
             active={activeIntent === "forecaster" || activeIntent === null}
+            dimmed={activeIntent !== null && activeIntent !== "forecaster"}
           />
           <ArchivistPanel
             data={result?.intent === "archivist" ? (result as ArchivistData) : null}
-            loading={loading}
+            loading={loading && (!activeIntent || activeIntent === "archivist")}
             active={activeIntent === "archivist" || activeIntent === null}
+            dimmed={activeIntent !== null && activeIntent !== "archivist"}
           />
         </div>
       </main>
 
-      {/* ── Footer ── */}
-      <footer
-        className="border-t border-[var(--panel-border)] px-6 py-3 text-center text-xs"
-        style={{ color: "var(--muted)" }}
-      >
+      {/* ── Footer ─────────────────────────────────────────────────────── */}
+      <footer className="px-6 py-3 text-center text-[11px] font-mono tracking-wide"
+        style={{ color: "var(--muted)", borderTop: "1px solid var(--border)" }}>
         Powered by{" "}
-        <span className="font-semibold" style={{ color: "var(--foreground)" }}>
-          IBM watsonx Granite
-        </span>{" "}
-        · Langflow · NASA APIs · IBM Docling
+        <span className="text-white/70 font-semibold">IBM watsonx Granite</span>
+        {" "}·{" "}LangFlow · NASA APIs · IBM Docling
       </footer>
-
-      {/* Dim inactive panels via JS when a result is active */}
-      {activeIntent !== null && (
-        <style>{`
-          .panel-inactive { opacity: 0.55; }
-        `}</style>
-      )}
     </div>
   );
 }

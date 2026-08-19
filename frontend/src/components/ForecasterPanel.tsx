@@ -23,101 +23,140 @@ interface Props {
   data: ForecasterData | null;
   loading: boolean;
   active: boolean;
+  dimmed?: boolean;
 }
 
-function classBadge(classType: string): string {
+function classBadgeStyle(classType: string): React.CSSProperties {
   const letter = (classType ?? "").charAt(0).toUpperCase();
-  if (letter === "X") return "bg-red-600 text-white";
-  if (letter === "M") return "bg-orange-500 text-white";
-  if (letter === "C") return "bg-amber-400 text-black";
-  return "bg-slate-600 text-slate-200";
+  if (letter === "X") return { background: "rgba(248,113,113,0.2)",  color: "#f87171", border: "1px solid rgba(248,113,113,0.35)" };
+  if (letter === "M") return { background: "rgba(251,146,60,0.2)",   color: "#fb923c", border: "1px solid rgba(251,146,60,0.35)" };
+  if (letter === "C") return { background: "rgba(251,191,36,0.18)",  color: "#fbbf24", border: "1px solid rgba(251,191,36,0.35)" };
+  return { background: "rgba(148,163,184,0.12)", color: "#94a3b8", border: "1px solid rgba(148,163,184,0.2)" };
 }
 
 function formatTime(t: string): string {
   if (!t) return "—";
-  // Trim seconds if present: "2024-01-15T12:30:00" → "2024-01-15 12:30"
   return t.replace("T", " ").replace(/:00$/, "").slice(0, 16);
 }
 
-export default function ForecasterPanel({ data, loading, active }: Props) {
-  const borderClass = active
-    ? "border-amber-400 panel-glow-amber"
-    : "border-[var(--panel-border)]";
-  const opacityClass =
-    !active && (data !== null || loading) ? "opacity-60" : "opacity-100";
+/* ── Pulsing waveform idle ───────────────────────────────────────────────── */
+function WaveIdle() {
+  const heights = [30, 45, 60, 75, 90, 75, 55, 40, 60, 80, 65, 50, 70, 85, 60, 45, 35, 50];
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-10 select-none">
+      {/* waveform */}
+      <div className="flex items-end gap-[3px]" style={{ height: 52 }}>
+        {heights.map((h, i) => (
+          <div
+            key={i}
+            className="w-[3px] rounded-full animate-[wave-pulse_1.4s_ease-in-out_infinite]"
+            style={{
+              height: h * 0.52,
+              background: "var(--amber)",
+              opacity: 0.6,
+              animationDelay: `${i * 0.075}s`,
+              transformOrigin: "bottom",
+            }}
+          />
+        ))}
+      </div>
+      <p className="text-[11px] font-mono tracking-widest uppercase" style={{ color: "var(--muted)" }}>
+        Monitoring solar activity
+      </p>
+    </div>
+  );
+}
 
+export default function ForecasterPanel({ data, loading, active, dimmed }: Props) {
   const displayed = data?.items?.slice(0, 8) ?? [];
-  const overflow = (data?.items?.length ?? 0) - 8;
+  const overflow  = (data?.items?.length ?? 0) - 8;
 
   return (
-    <div
-      className={`rounded-lg border bg-[var(--panel-bg)] p-4 flex flex-col gap-3 transition-all duration-300 ${borderClass} ${opacityClass}`}
-    >
+    <div className={`glass flex flex-col gap-4 p-5 transition-all duration-400
+      ${active ? "glass-active-amber" : ""}
+      ${dimmed ? "panel-inactive" : ""}`}>
+
       {/* Header */}
-      <div>
-        <h2 className="text-amber-400 font-mono font-bold text-sm tracking-widest uppercase">
-          ☀ FORECASTER
-        </h2>
-        <p className="text-[var(--muted)] text-xs mt-0.5">Solar Weather Monitor</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <span className="label">Forecaster</span>
+          <h2 className="font-mono font-semibold text-[15px] leading-snug mt-0.5"
+            style={{ color: "var(--amber)" }}>
+            Solar Weather
+          </h2>
+        </div>
+        <span className="label px-2 py-0.5 rounded-full"
+          style={{ background: "var(--amber-dim)", color: "var(--amber)" }}>
+          DONKI
+        </span>
       </div>
 
-      {/* Loading */}
+      {/* Loading skeletons */}
       {loading && (
-        <div className="flex flex-col gap-2 mt-1">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-16 rounded bg-slate-700 animate-pulse" />
+        <div className="flex flex-col gap-2 animate-fade-in">
+          {[100, 75, 90, 65, 80].map((w, i) => (
+            <div key={i} className="skeleton h-12 rounded-xl" style={{ width: `${w}%` }} />
           ))}
         </div>
       )}
 
       {/* Error */}
       {!loading && data?.error && (
-        <p className="text-red-400 text-xs">{data.error}</p>
+        <p className="text-[var(--red)] text-xs font-mono">{data.error}</p>
       )}
 
-      {/* Empty state */}
-      {!loading && !data && (
-        <div className="flex flex-col items-center justify-center py-8 gap-2">
-          <span className="text-3xl opacity-30">☀</span>
-          <p className="text-[var(--muted)] text-xs">Awaiting transmission...</p>
-        </div>
-      )}
+      {/* Idle */}
+      {!loading && !data && <WaveIdle />}
 
-      {/* Data */}
+      {/* Active data */}
       {!loading && data && !data.error && (
-        <>
-          <p className="text-amber-200 text-xs leading-relaxed">{data.summary}</p>
+        <div className="flex flex-col gap-3 animate-fade-in">
+          <p className="text-[13px] leading-relaxed" style={{ color: "#d4b896" }}>{data.summary}</p>
+
           <div className="flex flex-col gap-2">
             {displayed.map((f, i) => (
               <div
                 key={i}
-                className="rounded border border-[var(--panel-border)] bg-white/5 px-3 py-2 flex gap-3 items-start"
+                className="flex gap-3 items-start rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.04]"
+                style={{ background: "rgba(255,255,255,0.035)", border: "1px solid var(--border)" }}
               >
+                {/* class badge */}
                 <span
-                  className={`inline-block text-xs font-mono font-bold px-2 py-0.5 rounded whitespace-nowrap mt-0.5 ${classBadge(
-                    f.class_type
-                  )}`}
+                  className="shrink-0 inline-block text-[11px] font-mono font-bold px-2 py-0.5 rounded-md whitespace-nowrap mt-0.5"
+                  style={classBadgeStyle(f.class_type)}
                 >
                   {f.class_type ?? "?"}
                 </span>
-                <div className="flex flex-col gap-0.5 text-xs">
-                  <span className="font-mono text-slate-300">
-                    {formatTime(f.begin_time)} → {formatTime(f.peak_time)}
+
+                <div className="flex flex-col gap-0.5 text-[12px] min-w-0">
+                  <span className="font-mono text-white/75">
+                    {formatTime(f.begin_time)}
+                    <span className="mx-1 opacity-40">→</span>
+                    {formatTime(f.peak_time)}
                   </span>
-                  {f.source_location && (
-                    <span className="text-[var(--muted)]">Loc: {f.source_location}</span>
-                  )}
-                  {f.active_region !== null && f.active_region !== undefined && (
-                    <span className="text-[var(--muted)]">AR {f.active_region}</span>
-                  )}
+                  <div className="flex gap-3 flex-wrap">
+                    {f.source_location && (
+                      <span className="font-mono text-[11px]" style={{ color: "var(--muted)" }}>
+                        {f.source_location}
+                      </span>
+                    )}
+                    {f.active_region != null && (
+                      <span className="font-mono text-[11px]" style={{ color: "var(--muted)" }}>
+                        AR {f.active_region}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
+
           {overflow > 0 && (
-            <p className="text-[var(--muted)] text-xs">and {overflow} more...</p>
+            <p className="text-[11px] font-mono" style={{ color: "var(--muted)" }}>
+              +{overflow} more events
+            </p>
           )}
-        </>
+        </div>
       )}
     </div>
   );
