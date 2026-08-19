@@ -74,29 +74,29 @@ The Archivist is a full **Retrieval-Augmented Generation (RAG)** pipeline. A cur
 
 ```mermaid
 flowchart LR
-    User(["Browser\n(User)"])
+    User(["Browser"])
 
-    subgraph Frontend ["Next.js — Vercel / :3000"]
-        UI["Dashboard UI\nBento-box panels"]
-        API["/api/chat\nserver-side proxy"]
+    subgraph Frontend ["Next.js  —  Vercel / :3000"]
+        UI["Dashboard UI"]
+        API["/api/chat  server-side proxy"]
     end
 
-    subgraph Orchestration ["Langflow — :7861"]
-        Router["Master Router\nIntent Classification\nllama-4-maverick"]
+    subgraph Orchestration ["Langflow  —  :7861"]
+        Router["Master Router  —  llama-4-maverick"]
         SFlow["sentinel-flow.json"]
         FFlow["forecaster-flow.json"]
         AFlow["archivist-flow.json"]
     end
 
     subgraph DataSources ["External Data Sources"]
-        NeoWs["NASA NeoWs API\nNear-Earth objects\n7-day window"]
-        DONKI["NASA DONKI API\nSolar flare events\n30-day lookback"]
-        Chroma["Chroma Vector DB\nIBM Docling PDFs\nall-MiniLM-L6-v2"]
+        NeoWs["NASA NeoWs API  —  NEO 7-day window"]
+        DONKI["NASA DONKI API  —  Solar flares 30-day"]
+        Chroma["Chroma Vector DB  —  all-MiniLM-L6-v2"]
     end
 
-    subgraph watsonx ["IBM watsonx"]
-        Maverick["llama-4-maverick\n17b-128e-instruct-fp8\nRouting + Summaries + RAG"]
-        Docling["IBM Docling\nPDF Ingestion Pipeline"]
+    subgraph WX ["IBM watsonx"]
+        Maverick["llama-4-maverick-17b-128e-instruct-fp8"]
+        Docling["IBM Docling  —  PDF ingestion"]
     end
 
     User -->|"natural-language query"| UI
@@ -116,7 +116,6 @@ flowchart LR
     AFlow --> Maverick
 
     Docling -->|"offline ingestion"| Chroma
-
     Maverick -->|"JSON response"| API
 ```
 
