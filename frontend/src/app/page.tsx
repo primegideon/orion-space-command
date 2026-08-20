@@ -16,10 +16,10 @@ type AgentResult =
 
 const STACK_BADGES = [
   { id: "neows",    label: "NeoWs",    ver: "v1",       color: "var(--cyan)" },
-  { id: "chroma",   label: "Chroma",   ver: "DB",       color: "var(--emerald)" },
+  { id: "watsonx",  label: "watsonx",  ver: "ai",       color: "var(--cyan)" },
   { id: "docling",  label: "Docling",  ver: "v4",       color: "var(--emerald)" },
   { id: "llama",    label: "Llama-4",  ver: "Maverick", color: "var(--amber)" },
-  { id: "langflow", label: "Langflow", ver: "1.11",     color: "var(--cyan)" },
+  { id: "supabase", label: "Supabase", ver: "pgvector", color: "var(--emerald)" },
 ];
 
 export default function Home() {
@@ -54,15 +54,15 @@ export default function Home() {
     setConsoleOpen(true);
 
     addLog("INFO", "ORION Space Command — session initialized");
-    addLog("ROUTE", "Dispatching query to ORION Master Router...");
-    addLog("LLM", "llama-4-maverick-17b → intent classification");
+    addLog("ROUTE", "Dispatching query to ORION Master Router (watsonx)...");
+    addLog("LLM", "watsonx · llama-4-maverick-17b → intent classification");
 
     const controller = new AbortController();
     // 120 s hard timeout — two LLM calls (router + sub-agent) + NASA API can take 40-80s
     const timer = setTimeout(() => controller.abort(), 120_000);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: query.trim() }),
@@ -262,7 +262,7 @@ export default function Home() {
         style={{ color: "var(--muted)", borderTop: "1px solid var(--border)" }}>
         Powered by{" "}
         <span className="text-white/70 font-semibold">IBM watsonx</span>
-        {" "}·{" "}Llama-4 Maverick · LangFlow · NASA APIs · IBM Docling
+        {" "}·{" "}Llama-4 Maverick · NASA APIs · IBM Docling · Supabase
       </footer>
 
       {/* ── Detail panel ───────────────────────────────────────────────── */}
