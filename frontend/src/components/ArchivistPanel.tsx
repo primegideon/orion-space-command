@@ -131,7 +131,7 @@ function DocScanIdle() {
 
 export default function ArchivistPanel({ data, loading, active, dimmed }: Props) {
   return (
-    <div className={`glass flex flex-col p-5 transition-all duration-400 h-full overflow-hidden
+    <div className={`glass flex flex-col p-5 transition-all duration-400 h-full min-h-[450px] overflow-hidden
       ${active ? "glass-active-emerald" : ""}
       ${dimmed ? "panel-inactive" : ""}`}>
 

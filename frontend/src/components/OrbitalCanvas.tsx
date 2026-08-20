@@ -156,7 +156,7 @@ export default function OrbitalCanvas({ items }: OrbitalCanvasProps) {
   return (
     <div
       className="w-full rounded-xl overflow-hidden"
-      style={{ height: 220, background: "rgba(4,9,15,0.7)", border: "1px solid var(--border)" }}
+      style={{ height: 220, minHeight: 220, background: "rgba(4,9,15,0.7)", border: "1px solid var(--border)" }}
     >
       <Canvas
         frameloop="demand"

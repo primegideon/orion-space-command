@@ -88,7 +88,7 @@ export default function ForecasterPanel({ data, loading, active, dimmed, onSelec
   const overflow  = (data?.items?.length ?? 0) - 8;
 
   return (
-    <div className={`glass flex flex-col p-5 transition-all duration-400 h-full overflow-hidden
+    <div className={`glass flex flex-col p-5 transition-all duration-400 h-full min-h-[450px] overflow-hidden
       ${active ? "glass-active-amber" : ""}
       ${dimmed ? "panel-inactive" : ""}`}>
 

@@ -116,7 +116,7 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col" style={{ background: "var(--bg)" }}>
+    <div className="h-screen flex flex-col" style={{ background: "var(--bg)" }}>
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-3 glass"
@@ -173,7 +173,7 @@ export default function Home() {
       </header>
 
       {/* ── Main ───────────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col gap-5 px-5 py-5 max-w-screen-xl w-full mx-auto pb-16 min-h-0">
+      <main className="flex-1 flex flex-col gap-5 px-5 py-5 max-w-screen-xl w-full mx-auto pb-16 min-h-0 overflow-y-auto">
 
         {/* Query bar */}
         <div
@@ -233,7 +233,10 @@ export default function Home() {
         )}
 
         {/* ── Bento grid ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0" style={{ gridAutoRows: "1fr", alignItems: "stretch" }}>
+        <div
+          className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0"
+          style={{ gridAutoRows: "minmax(450px, 1fr)", alignItems: "stretch" }}
+        >
           <SentinelPanel
             data={result?.intent === "sentinel" ? (result as SentinelData) : null}
             loading={loading && (!activeIntent || activeIntent === "sentinel")}

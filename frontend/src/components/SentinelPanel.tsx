@@ -6,7 +6,7 @@ const OrbitalCanvas = dynamic(() => import("./OrbitalCanvas"), {
   ssr: false,
   loading: () => (
     <div className="w-full rounded-xl animate-pulse"
-      style={{ height: 220, background: "rgba(4,9,15,0.7)", border: "1px solid var(--border)" }} />
+      style={{ height: 220, minHeight: 220, background: "rgba(4,9,15,0.7)", border: "1px solid var(--border)" }} />
   ),
 });
 
@@ -154,7 +154,7 @@ export default function SentinelPanel({ data, loading, active, dimmed, onSelectI
   const overflow  = (data?.items?.length ?? 0) - 10;
 
   return (
-    <div className={`glass flex flex-col p-5 transition-all duration-400 h-full overflow-hidden
+    <div className={`glass flex flex-col p-5 transition-all duration-400 h-full min-h-[450px] overflow-hidden
       ${active ? "glass-active-cyan" : ""}
       ${dimmed ? "panel-inactive" : ""}`}>
 
