@@ -117,30 +117,58 @@ export async function generateText(
  * Returns a 384-dimensional float array — identical model to what was used
  * during Chroma ingestion, so Supabase pgvector cosine similarity works correctly.
  *
- * Uses the free HuggingFace Inference API (no key required for this model).
+ * Retries up to 3 times with exponential backoff to handle cold-start latency
+ * on the free HuggingFace Inference API.
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   const HF_URL =
     "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2";
 
-  const res = await fetch(HF_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ inputs: text }),
-  });
+  const MAX_RETRIES = 3;
+  let lastError: Error = new Error("Unknown error");
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`HuggingFace embedding failed (${res.status}): ${body}`);
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      // Exponential backoff: 1s, 2s
+      await new Promise((r) => setTimeout(r, 1000 * attempt));
+    }
+
+    try {
+      const res = await fetch(HF_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inputs: text, options: { wait_for_model: true } }),
+        // 20s timeout per attempt
+        signal: AbortSignal.timeout(20_000),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        // 503 = model loading — retry
+        if (res.status === 503) {
+          lastError = new Error(`HuggingFace model loading (attempt ${attempt + 1})`);
+          continue;
+        }
+        throw new Error(`HuggingFace embedding failed (${res.status}): ${body}`);
+      }
+
+      const data = await res.json() as number[] | number[][];
+
+      // HF returns either a flat array or nested array depending on the model
+      const embedding = Array.isArray(data[0])
+        ? (data as number[][])[0]
+        : (data as number[]);
+
+      if (!Array.isArray(embedding) || embedding.length === 0) {
+        throw new Error("Unexpected HuggingFace embedding response shape");
+      }
+      return embedding;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Don't retry on non-transient errors
+      if (lastError.message.includes("failed (4")) break;
+    }
   }
 
-  const data = await res.json() as number[] | number[][];
-
-  // HF returns either a flat array or a nested array depending on the model
-  const embedding = Array.isArray(data[0]) ? (data as number[][])[0] : (data as number[]);
-
-  if (!Array.isArray(embedding) || embedding.length === 0) {
-    throw new Error("Unexpected HuggingFace embedding response shape");
-  }
-  return embedding;
+  throw new Error(`Embedding failed after ${MAX_RETRIES} attempts: ${lastError.message}`);
 }

@@ -91,7 +91,16 @@ export async function POST(req: NextRequest) {
     try {
       queryEmbedding = await generateEmbedding(query.trim());
     } catch (embedErr) {
-      throw new Error(`Embedding failed: ${embedErr instanceof Error ? embedErr.message : String(embedErr)}`);
+      // Embedding service unavailable — fall back to watsonx direct answer
+      console.warn("[archivist] embedding failed, falling back to direct LLM answer:", embedErr);
+      const fallbackAnswer = await generateText(
+        `You are the ORION Archivist, an astrophysics research assistant. Answer this question as best you can based on your training knowledge about space science, asteroids, solar activity, and astrophysics research:\n\nQuestion: ${query.trim()}\n\nAnswer:`,
+        { maxNewTokens: 400, temperature: 0.3 }
+      );
+      return NextResponse.json<ArchivistData>(
+        { agent: "archivist", answer: fallbackAnswer.trim(), sources: ["watsonx knowledge base"], confidence: "medium" },
+        { status: 200 }
+      );
     }
 
     // Step 2 — retrieve top-5 chunks from Supabase pgvector
