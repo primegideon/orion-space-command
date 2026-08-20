@@ -13,18 +13,22 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ROUTING_PROMPT = (query: string) => `\
-You are an intent classifier for ORION Space Command.
-Classify the user query into exactly one of: sentinel, forecaster, archivist.
-- sentinel   → near-Earth objects, asteroids, NEO, NeoWs
-- forecaster → solar flares, space weather, DONKI, CME
-- archivist  → historical research, documents, RAG, knowledge base
+[INST] You are a JSON-only intent classifier. No explanations. No markdown. No preamble.
+Classify this query into exactly one of: sentinel, forecaster, archivist.
+- sentinel   = near-Earth objects, asteroids, NEO, close approach, planetary defense
+- forecaster = solar flares, space weather, DONKI, CME, solar activity
+- archivist  = research papers, literature, studies, what does research say
 
-Return ONLY valid JSON with no markdown fences:
-{"intent": "sentinel"|"forecaster"|"archivist", "query": "<refined query>"}
+Respond with ONLY this JSON and nothing else:
+{"intent": "sentinel", "query": "..."}
 
-User query: ${query}`;
+Query: ${query} [/INST]`;
 
 function stripFences(text: string): string {
+  // If there's a ```json ... ``` block anywhere in the text, extract just that
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch) return fenceMatch[1].trim();
+  // Otherwise strip leading/trailing fences
   return text
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
@@ -52,7 +56,14 @@ export async function POST(req: NextRequest) {
     let intent: string;
     let subQuery: string;
     try {
-      const parsed = JSON.parse(stripFences(rawClassification)) as {
+      // Primary: strip fences and parse
+      let toParse = stripFences(rawClassification);
+      // Fallback: find first {...} JSON object in the raw text
+      if (!toParse.startsWith("{")) {
+        const jsonMatch = rawClassification.match(/\{[\s\S]*?\}/);
+        if (jsonMatch) toParse = jsonMatch[0];
+      }
+      const parsed = JSON.parse(toParse) as {
         intent: string;
         query: string;
       };
