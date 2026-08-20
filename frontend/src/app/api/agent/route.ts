@@ -13,39 +13,43 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ROUTING_PROMPT = (query: string) => `\
-You are a query router for ORION Space Command. Route the query to one of three agents:
+You are a query router for ORION Space Command. Route the query to exactly one of three agents.
 
-SENTINEL — handles live asteroid and near-Earth object data from NASA NeoWs API.
-Choose sentinel when the query asks about: asteroids, NEO, near-Earth objects, close approaches, miss distance, PHO, planetary defense, asteroid size/speed/hazard, approaching objects this week.
-Examples of sentinel queries:
+SENTINEL — live asteroid / near-Earth object data from NASA NeoWs.
+Choose sentinel for: asteroids, NEO, near-Earth objects, close approaches, miss distance, PHO, planetary defense, asteroid size/speed/hazard, space rocks, orbital data.
+Examples:
 - "show me asteroids approaching this week" → sentinel
 - "are there any potentially hazardous asteroids?" → sentinel
 - "what's the closest asteroid right now?" → sentinel
 - "give me a planetary defense briefing" → sentinel
 - "NEO close approach data" → sentinel
+- "how big is the asteroid passing Earth?" → sentinel
 - "astroid" → sentinel
 
-FORECASTER — handles live solar weather data from NASA DONKI API.
-Choose forecaster when the query asks about: solar flares, space weather, CME, coronal mass ejections, X-class flares, M-class flares, solar activity, DONKI, geomagnetic storms, radiation risk, satellite risk, sun activity.
-Examples of forecaster queries:
+FORECASTER — live solar weather data from NASA DONKI.
+Choose forecaster for: solar flares, space weather, CME, coronal mass ejections, X-class/M-class flares, solar activity, geomagnetic storms, radiation risk, satellite disruption, sun activity, DONKI.
+Examples:
 - "solar flare activity last 30 days" → forecaster
 - "have there been any X-class flares recently?" → forecaster
 - "what's the current space weather situation?" → forecaster
 - "risk to satellites from solar activity" → forecaster
 - "how active has the sun been?" → forecaster
+- "any flares today?" → forecaster
 - "sola flair" → forecaster
 
-ARCHIVIST — handles research literature questions using a RAG knowledge base of astrophysics papers.
-Choose archivist ONLY when the query explicitly asks for research findings, papers, studies, how scientists work, or technical explanations grounded in literature (not live data).
-Examples of archivist queries:
+ARCHIVIST — research literature RAG (astrophysics papers and studies).
+Choose archivist ONLY when the query explicitly mentions: research, papers, studies, literature, scientists, findings, published, methodology, theories, or asks for a technical academic explanation.
+Examples:
 - "what does research say about asteroid deflection?" → archivist
 - "how do scientists predict solar flares?" → archivist
-- "explain kinetic impactor deflection strategies" → archivist
+- "explain kinetic impactor deflection strategies according to literature" → archivist
 
-Important rules:
-- If the query mentions live data (this week, right now, recently, last 30 days, current, today) → prefer sentinel or forecaster over archivist.
-- Ignore typos and slang — infer the correct domain from context.
-- If completely ambiguous, default to archivist.
+Critical routing rules:
+1. Asteroid / NEO / space rock topics → ALWAYS sentinel, even if phrased as "explain" or "how".
+2. Solar / flare / space weather topics → ALWAYS forecaster, even if phrased as "explain" or "how".
+3. Only route to archivist when the query is clearly about research papers or scientific methodology — NOT just any general question.
+4. Live-data keywords (this week, right now, recently, last 30 days, current, today, latest) → sentinel or forecaster, never archivist.
+5. If truly ambiguous (topic is unclear), default to sentinel.
 
 Output only a single line of valid JSON with no extra text:
 {"intent": "sentinel", "query": "the original query"}
@@ -104,10 +108,24 @@ export async function POST(req: NextRequest) {
       }
       subQuery = parsed.query ?? query.trim();
     } catch {
-      // Model returned conversational text instead of JSON — default to archivist
-      // so the system gracefully falls back to the research database instead of crashing.
-      console.warn("[router] JSON parse failed, defaulting to archivist. Raw:", rawClassification.slice(0, 200));
-      intent = "archivist";
+      // Model returned conversational text instead of JSON.
+      // Keyword-scan the raw output and query to pick the best agent rather than always defaulting to archivist.
+      console.warn("[router] JSON parse failed, keyword fallback. Raw:", rawClassification.slice(0, 200));
+      const q = query.toLowerCase();
+      const rawLow = rawClassification.toLowerCase();
+      if (
+        rawLow.includes("sentinel") ||
+        /asteroid|neo|near.earth|close.approach|hazardous|planetary.defense|space.rock/.test(q)
+      ) {
+        intent = "sentinel";
+      } else if (
+        rawLow.includes("forecaster") ||
+        /solar.flare|space.weather|cme|coronal|geomagnetic|donki|x.class|m.class|sun.activ/.test(q)
+      ) {
+        intent = "forecaster";
+      } else {
+        intent = "archivist";
+      }
       subQuery = query.trim();
     }
 

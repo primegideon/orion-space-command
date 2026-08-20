@@ -40,15 +40,26 @@ Answer (plain prose only, no markdown, no lists, no bold):`;
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 function cleanAnswer(raw: string): { answer: string; confidence: "high" | "medium" | "low" } {
-  // Strip markdown: headings, bold, italic, bullets, numbered lists, code fences
   let text = raw
+    // Strip markdown code fences
     .replace(/```[\s\S]*?```/g, "")
+    // Strip inline backticks
     .replace(/`[^`]*`/g, "")
+    // Strip markdown headings
     .replace(/^#{1,6}\s+.*/gm, "")
+    // Strip chain-of-thought lines (Step 1, Thinking, Reasoning, etc.)
+    .replace(/^(step\s*\d+[:\-.]?.*|thinking[:\-.]?.*|reasoning[:\-.]?.*)/gim, "")
+    // Strip JSON-like lines
+    .replace(/^\s*[\{\[].*/gm, "")
+    // Strip blockquote markers
+    .replace(/^>\s*/gm, "")
+    // Strip bullet / numbered list markers
     .replace(/^\s*[-*+]\s+/gm, "")
     .replace(/^\s*\d+\.\s+/gm, "")
+    // Strip bold/italic markers
     .replace(/\*{1,3}([^*\n]+)\*{1,3}/g, "$1")
     .replace(/_{1,2}([^_\n]+)_{1,2}/g, "$1")
+    // Collapse multiple blank lines
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
