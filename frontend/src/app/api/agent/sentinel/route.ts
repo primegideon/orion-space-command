@@ -64,12 +64,30 @@ function flattenNeo(feed: NeoWsFeed): AsteroidItem[] {
 
 const SUMMARY_PROMPT = (items: AsteroidItem[], dateRange: { start: string; end: string }) => `\
 You are SENTINEL, the near-Earth object monitoring agent for ORION Space Command.
-Below is a list of asteroids approaching Earth between ${dateRange.start} and ${dateRange.end}.
+Asteroid close-approach data for ${dateRange.start} to ${dateRange.end}:
+${items.slice(0, 20).map((a) => `- ${a.name}: ${a.miss_distance_km?.toLocaleString() ?? "?"} km miss distance on ${a.close_approach_date}${a.is_potentially_hazardous ? " [PHO]" : ""}`).join("\n")}
 
-Data (JSON):
-${JSON.stringify(items.slice(0, 20), null, 2)}
+Write a single paragraph of 2-3 sentences as a professional mission briefing. Mention the total object count, highlight any PHO designations, and state the closest approach distance. Output only the briefing paragraph — no headings, no bullet points, no markdown, no JSON, no step-by-step reasoning, no preamble.`;
 
-Write a concise 2-3 sentence mission briefing for the crew. Highlight any potentially hazardous objects (PHO), the closest approach, and the overall threat level. Be factual and precise.`;
+/* ── output sanitiser ────────────────────────────────────────────────────── */
+function cleanSummary(raw: string): string {
+  return raw
+    // Strip markdown code fences (```...```)
+    .replace(/```[\s\S]*?```/g, "")
+    // Strip inline backticks
+    .replace(/`[^`]*`/g, "")
+    // Strip markdown headings (## Step 1, ### etc.)
+    .replace(/^#{1,6}\s+.*/gm, "")
+    // Strip lines that look like chain-of-thought steps
+    .replace(/^(step\s*\d+[:\-.]?.*|thinking[:\-.]?.*|reasoning[:\-.]?.*)/gim, "")
+    // Strip JSON-like lines
+    .replace(/^\s*[\{\[].*/gm, "")
+    // Strip bold/italic markers
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    // Collapse multiple blank lines to one
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 /* ── route handler ───────────────────────────────────────────────────────── */
 export async function POST(req: NextRequest) {
@@ -110,7 +128,8 @@ export async function POST(req: NextRequest) {
         maxNewTokens: 200,
         temperature: 0.3,
       });
-      if (raw.length > 20) summary = raw;
+      const cleaned = cleanSummary(raw);
+      if (cleaned.length > 20) summary = cleaned;
     } catch (llmErr) {
       // LLM failure is non-fatal — surface data with fallback summary
       console.warn("[sentinel] watsonx summary failed:", llmErr);

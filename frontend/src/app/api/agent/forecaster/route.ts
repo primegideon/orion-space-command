@@ -46,12 +46,30 @@ const SUMMARY_PROMPT = (
   period: { start: string; end: string }
 ) => `\
 You are FORECASTER, the solar weather analyst for ORION Space Command.
-Below is a list of solar flares detected between ${period.start} and ${period.end}.
+Solar flare events detected between ${period.start} and ${period.end}:
+${items.length === 0 ? "No flares detected." : items.slice(0, 15).map((f) => `- ${f.class_type} flare at ${f.peak_time ?? f.begin_time}${f.source_location ? ` from ${f.source_location}` : ""}`).join("\n")}
 
-Data (JSON):
-${JSON.stringify(items.slice(0, 15), null, 2)}
+Write a single paragraph of 2-3 sentences as a professional space-weather advisory. Mention the total flare count, highlight the most severe class observed, and state any risk to satellites or communications. Output only the advisory paragraph — no headings, no bullet points, no markdown, no JSON, no step-by-step reasoning, no preamble.`;
 
-Write a concise 2-3 sentence mission briefing. Highlight any X-class or M-class flares, the peak activity period, and any risk to communications or satellites. If no flares occurred, note the quiet solar conditions.`;
+/* ── output sanitiser ────────────────────────────────────────────────────── */
+function cleanSummary(raw: string): string {
+  return raw
+    // Strip markdown code fences (```...```)
+    .replace(/```[\s\S]*?```/g, "")
+    // Strip inline backticks
+    .replace(/`[^`]*`/g, "")
+    // Strip markdown headings (## Step 1, ### etc.)
+    .replace(/^#{1,6}\s+.*/gm, "")
+    // Strip lines that look like chain-of-thought steps
+    .replace(/^(step\s*\d+[:\-.]?.*|thinking[:\-.]?.*|reasoning[:\-.]?.*)/gim, "")
+    // Strip JSON-like lines
+    .replace(/^\s*[\{\[].*/gm, "")
+    // Strip bold/italic markers
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    // Collapse multiple blank lines to one
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 /* ── route handler ───────────────────────────────────────────────────────── */
 export async function POST(req: NextRequest) {
@@ -101,7 +119,8 @@ export async function POST(req: NextRequest) {
         maxNewTokens: 200,
         temperature: 0.3,
       });
-      if (raw.length > 20) summary = raw;
+      const cleaned = cleanSummary(raw);
+      if (cleaned.length > 20) summary = cleaned;
     } catch (llmErr) {
       console.warn("[forecaster] watsonx summary failed:", llmErr);
     }
