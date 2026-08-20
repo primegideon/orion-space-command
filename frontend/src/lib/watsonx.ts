@@ -9,7 +9,7 @@
 
 const IAM_TOKEN_URL = "https://iam.cloud.ibm.com/identity/token";
 const WATSONX_MODEL       = "meta-llama/llama-4-maverick-17b-128e-instruct-fp8";
-const WATSONX_EMBED_MODEL = "ibm/slate-30m-english-rtrvr";
+const WATSONX_EMBED_MODEL = "ibm/slate-125m-english-rtrvr";
 
 /* ── IAM token cache ──────────────────────────────────────────────────────── */
 
