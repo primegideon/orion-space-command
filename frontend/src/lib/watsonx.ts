@@ -3,11 +3,13 @@
  *
  * Provides:
  *   - IAM bearer token exchange with module-level caching (1-hour TTL, 60-second early-refresh)
- *   - generateText()  — wraps the watsonx text/generation REST endpoint
+ *   - generateText()     — wraps the watsonx text/generation REST endpoint
+ *   - generateEmbedding() — wraps the watsonx text/embeddings REST endpoint (384-dim)
  */
 
 const IAM_TOKEN_URL = "https://iam.cloud.ibm.com/identity/token";
-const WATSONX_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct-fp8";
+const WATSONX_MODEL       = "meta-llama/llama-4-maverick-17b-128e-instruct-fp8";
+const WATSONX_EMBED_MODEL = "ibm/slate-30m-english-rtrvr";
 
 /* ── IAM token cache ──────────────────────────────────────────────────────── */
 
@@ -107,4 +109,50 @@ export async function generateText(
     throw new Error("Unexpected watsonx response shape — no generated_text");
   }
   return text.trim();
+}
+
+/* ── generateEmbedding ────────────────────────────────────────────────────── */
+
+/**
+ * Embed a text string using the IBM watsonx slate-30m model.
+ * Returns a 384-dimensional float array — same dimension as all-MiniLM-L6-v2
+ * used during Chroma ingestion, so existing embeddings are compatible.
+ */
+export async function generateEmbedding(text: string): Promise<number[]> {
+  const watsonxUrl = process.env.WATSONX_URL ?? "https://us-south.ml.cloud.ibm.com";
+  const projectId = process.env.WATSONX_PROJECT_ID;
+  if (!projectId) throw new Error("WATSONX_PROJECT_ID is not set");
+
+  const token = await getIamToken();
+
+  const res = await fetch(
+    `${watsonxUrl}/ml/v1/text/embeddings?version=2023-05-29`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        model_id: WATSONX_EMBED_MODEL,
+        inputs: [text],
+        project_id: projectId,
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`watsonx embedding failed (${res.status}): ${body}`);
+  }
+
+  const data = (await res.json()) as {
+    results: { embedding: number[] }[];
+  };
+
+  const embedding = data.results?.[0]?.embedding;
+  if (!Array.isArray(embedding)) {
+    throw new Error("Unexpected watsonx embedding response shape — no embedding array");
+  }
+  return embedding;
 }
