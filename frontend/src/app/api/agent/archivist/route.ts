@@ -39,14 +39,6 @@ Answer (plain prose only, no markdown, no lists, no bold):`;
 }
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
-function stripFences(text: string): string {
-  return text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-}
-
 function cleanAnswer(raw: string): { answer: string; confidence: "high" | "medium" | "low" } {
   // Strip markdown: headings, bold, italic, bullets, numbered lists, code fences
   let text = raw
