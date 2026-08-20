@@ -1,5 +1,7 @@
 "use client";
 
+import FlareChart from "./FlareChart";
+
 export interface FlareItem {
   flr_id: string;
   class_type: string;
@@ -128,6 +130,9 @@ export default function ForecasterPanel({ data, loading, active, dimmed, onSelec
       {/* Active data */}
       {!loading && data && !data.error && (
         <div className="flex flex-col gap-3 animate-fade-in">
+          {/* Solar weather time-series charts */}
+          {data.items.length > 0 && <FlareChart items={data.items} />}
+
           <p className="text-[13px] leading-relaxed" style={{ color: "#d4b896" }}>{data.summary}</p>
 
           <div className="flex flex-col gap-2">

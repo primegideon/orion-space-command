@@ -1,5 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
+const OrbitalCanvas = dynamic(() => import("./OrbitalCanvas"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full rounded-xl animate-pulse"
+      style={{ height: 220, background: "rgba(4,9,15,0.7)", border: "1px solid var(--border)" }} />
+  ),
+});
+
 export interface AsteroidItem {
   name: string;
   miss_distance_km: number | null;
@@ -186,6 +196,9 @@ export default function SentinelPanel({ data, loading, active, dimmed, onSelectI
       {/* Active data */}
       {!loading && data && !data.error && (
         <div className="flex flex-col gap-3 animate-fade-in">
+          {/* 3D Orbital Canvas */}
+          {data.items.length > 0 && <OrbitalCanvas items={data.items} />}
+
           <p className="text-[13px] leading-relaxed" style={{ color: "#a0c4d8" }}>{data.summary}</p>
 
           <div className="overflow-x-auto scrollbar-thin -mx-1 px-1">
