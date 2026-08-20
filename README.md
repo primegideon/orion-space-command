@@ -348,6 +348,54 @@ orion-space-command/
 
 ---
 
+## 🧪 Sample Mission Queries
+
+### 🛰️ Sentinel — Near-Earth Objects
+- `show me asteroids approaching this week`
+- `are there any potentially hazardous asteroids coming?`
+- `what near-Earth objects are closest to Earth right now?`
+- `show me all PHO asteroids in the next 7 days`
+- `which asteroid has the smallest miss distance this week?`
+- `give me a planetary defense briefing`
+- `what's the largest asteroid approaching Earth soon?`
+- `are any asteroids bigger than 1km coming close?`
+- `show me the fastest moving asteroid this week`
+- `NEO close approach data`
+
+### ☀️ Forecaster — Solar Weather
+- `solar flare activity last 30 days`
+- `have there been any X-class flares recently?`
+- `what's the current space weather situation?`
+- `show me solar weather activity`
+- `any M-class or X-class flares this month?`
+- `what's the risk to satellites from solar activity?`
+- `give me a solar weather briefing`
+- `how active has the sun been lately?`
+- `show me DONKI flare data`
+- `any coronal mass ejections recently?`
+- `what solar events could affect communications?`
+- `is there elevated radiation risk from solar activity?`
+
+### 📚 Archivist — Astrophysics Research RAG
+- `what does research say about asteroid deflection?`
+- `how do scientists predict solar flares?`
+- `explain near-Earth object detection methods`
+- `what are kinetic impactor deflection strategies?`
+- `how does machine learning help with solar flare forecasting?`
+- `what is the Torino scale?`
+- `explain the role of active regions in solar flare prediction`
+- `what research exists on solar energetic particle events?`
+- `how does JWST contribute to astrophysics research?`
+- `what are debiased orbital models for NEOs?`
+- `explain CNN models for space weather prediction`
+- `what mitigation strategies exist for asteroid impacts?`
+- `how do HMI magnetograms help forecast flares?`
+- `what is the current state of near-Earth asteroid survey completeness?`
+- `explain the relationship between solar flares and SEP events`
+- `what does research say about planetary defense readiness?`
+
+---
+
 ## Secrets Hygiene
 
 - `frontend/.env.local` — gitignored by default.

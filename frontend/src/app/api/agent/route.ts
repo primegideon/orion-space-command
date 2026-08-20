@@ -14,12 +14,16 @@ export const dynamic = "force-dynamic";
 
 const ROUTING_PROMPT = (query: string) => `\
 Classify the following query into exactly one intent: sentinel, forecaster, or archivist.
-- sentinel   = asteroids, NEO, near-Earth objects, close approach, planetary defense
-- forecaster = solar flares, space weather, CME, solar activity, DONKI
-- archivist  = research, papers, literature, studies, what does research say
+- sentinel   = asteroids, asteroid, NEO, near-Earth objects, close approach, planetary defense, orbit, trajectory
+- forecaster = solar flares, solar, space weather, CME, coronal, geomagnetic, DONKI, radiation, sun
+- archivist  = research, papers, literature, studies, what does research say, how do scientists, explain, history
+
+Important: The user may have typos, poor grammar, or use slang. Ignore spelling errors and infer the correct domain from semantic meaning. Examples: "astroid" = sentinel, "sola flair" = forecaster, "reasearch" = archivist.
+
+If the query is completely ambiguous or unrecognisable, default to archivist.
 
 Output only a single line of valid JSON with no extra text:
-{"intent": "archivist", "query": "example query"}
+{"intent": "sentinel", "query": "the original or lightly corrected query"}
 
 Query to classify: ${query}
 
@@ -54,8 +58,8 @@ export async function POST(req: NextRequest) {
       temperature: 0,
     });
 
-    let intent: string;
-    let subQuery: string;
+    let intent = "archivist";   // safe default
+    let subQuery = query.trim();
     try {
       // Primary: strip fences and parse
       let toParse = stripFences(rawClassification);
@@ -68,30 +72,18 @@ export async function POST(req: NextRequest) {
         intent: string;
         query: string;
       };
-      intent = parsed.intent?.toLowerCase();
+      const parsedIntent = parsed.intent?.toLowerCase();
+      // Only accept a known intent — otherwise keep the archivist default
+      if (["sentinel", "forecaster", "archivist"].includes(parsedIntent)) {
+        intent = parsedIntent;
+      }
       subQuery = parsed.query ?? query.trim();
     } catch {
-      return NextResponse.json(
-        {
-          intent: "error",
-          error: `Router returned unparseable classification: ${rawClassification.slice(0, 300)}`,
-          items: [],
-          summary: "",
-        },
-        { status: 500 }
-      );
-    }
-
-    if (!["sentinel", "forecaster", "archivist"].includes(intent)) {
-      return NextResponse.json(
-        {
-          intent: "error",
-          error: `Unknown intent "${intent}". Expected sentinel, forecaster, or archivist.`,
-          items: [],
-          summary: "",
-        },
-        { status: 422 }
-      );
+      // Model returned conversational text instead of JSON — default to archivist
+      // so the system gracefully falls back to the research database instead of crashing.
+      console.warn("[router] JSON parse failed, defaulting to archivist. Raw:", rawClassification.slice(0, 200));
+      intent = "archivist";
+      subQuery = query.trim();
     }
 
     // Step 2 — forward to the relevant sub-agent by making an internal fetch
