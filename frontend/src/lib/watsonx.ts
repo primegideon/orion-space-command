@@ -8,8 +8,7 @@
  */
 
 const IAM_TOKEN_URL = "https://iam.cloud.ibm.com/identity/token";
-const WATSONX_MODEL       = "meta-llama/llama-4-maverick-17b-128e-instruct-fp8";
-const WATSONX_EMBED_MODEL = "ibm/slate-125m-english-rtrvr";
+const WATSONX_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct-fp8";
 
 /* ── IAM token cache ──────────────────────────────────────────────────────── */
 
@@ -114,45 +113,34 @@ export async function generateText(
 /* ── generateEmbedding ────────────────────────────────────────────────────── */
 
 /**
- * Embed a text string using the IBM watsonx slate-30m model.
- * Returns a 384-dimensional float array — same dimension as all-MiniLM-L6-v2
- * used during Chroma ingestion, so existing embeddings are compatible.
+ * Embed a text string using HuggingFace hosted inference for all-MiniLM-L6-v2.
+ * Returns a 384-dimensional float array — identical model to what was used
+ * during Chroma ingestion, so Supabase pgvector cosine similarity works correctly.
+ *
+ * Uses the free HuggingFace Inference API (no key required for this model).
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const watsonxUrl = process.env.WATSONX_URL ?? "https://us-south.ml.cloud.ibm.com";
-  const projectId = process.env.WATSONX_PROJECT_ID;
-  if (!projectId) throw new Error("WATSONX_PROJECT_ID is not set");
+  const HF_URL =
+    "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2";
 
-  const token = await getIamToken();
-
-  const res = await fetch(
-    `${watsonxUrl}/ml/v1/text/embeddings?version=2023-05-29`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        model_id: WATSONX_EMBED_MODEL,
-        inputs: [text],
-        project_id: projectId,
-      }),
-    }
-  );
+  const res = await fetch(HF_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ inputs: text }),
+  });
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`watsonx embedding failed (${res.status}): ${body}`);
+    throw new Error(`HuggingFace embedding failed (${res.status}): ${body}`);
   }
 
-  const data = (await res.json()) as {
-    results: { embedding: number[] }[];
-  };
+  const data = await res.json() as number[] | number[][];
 
-  const embedding = data.results?.[0]?.embedding;
-  if (!Array.isArray(embedding)) {
-    throw new Error("Unexpected watsonx embedding response shape — no embedding array");
+  // HF returns either a flat array or a nested array depending on the model
+  const embedding = Array.isArray(data[0]) ? (data as number[][])[0] : (data as number[]);
+
+  if (!Array.isArray(embedding) || embedding.length === 0) {
+    throw new Error("Unexpected HuggingFace embedding response shape");
   }
   return embedding;
 }
