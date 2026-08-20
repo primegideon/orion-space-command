@@ -13,16 +13,17 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ROUTING_PROMPT = (query: string) => `\
-[INST] You are a JSON-only intent classifier. No explanations. No markdown. No preamble.
-Classify this query into exactly one of: sentinel, forecaster, archivist.
-- sentinel   = near-Earth objects, asteroids, NEO, close approach, planetary defense
-- forecaster = solar flares, space weather, DONKI, CME, solar activity
-- archivist  = research papers, literature, studies, what does research say
+Classify the following query into exactly one intent: sentinel, forecaster, or archivist.
+- sentinel   = asteroids, NEO, near-Earth objects, close approach, planetary defense
+- forecaster = solar flares, space weather, CME, solar activity, DONKI
+- archivist  = research, papers, literature, studies, what does research say
 
-Respond with ONLY this JSON and nothing else:
-{"intent": "sentinel", "query": "..."}
+Output only a single line of valid JSON with no extra text:
+{"intent": "archivist", "query": "example query"}
 
-Query: ${query} [/INST]`;
+Query to classify: ${query}
+
+JSON:`;
 
 function stripFences(text: string): string {
   // If there's a ```json ... ``` block anywhere in the text, extract just that
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     // Step 1 — classify intent via watsonx
     const rawClassification = await generateText(ROUTING_PROMPT(query.trim()), {
-      maxNewTokens: 128,
+      maxNewTokens: 64,
       temperature: 0,
     });
 
