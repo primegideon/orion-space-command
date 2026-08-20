@@ -1,4 +1,4 @@
-/**
+ /**
  * /api/agent/archivist — Research RAG Sub-Agent (Pillar 2)
  *
  * 1. Embeds the user query via IBM watsonx slate-30m (384-dim)
@@ -26,16 +26,16 @@ interface EmbeddingMatch {
 function ragPrompt(context: string, query: string): string {
   return `\
 You are the ORION Archivist — an astrophysics research assistant.
-Answer the user's question using ONLY the provided research excerpts.
-Be precise, cite which source supports each claim, and rate your confidence as high, medium, or low.
+Answer the user's question using ONLY the provided research excerpts below.
+Write a single flowing paragraph of 3-5 sentences. Do NOT use bullet points, numbered lists, bold text, headings, asterisks, or any markdown formatting whatsoever. Do NOT output chain-of-thought reasoning. Do NOT echo these instructions. Just write the answer as plain prose.
+Cite sources naturally in the text (e.g. "According to Smith et al..."). End with a one-word confidence rating on a new line: high, medium, or low.
 
 Research excerpts:
 ${context}
 
 Question: ${query}
 
-Return ONLY valid JSON with no markdown fences:
-{"answer": "...", "sources": ["source1", "source2"], "confidence": "high|medium|low"}`;
+Answer (plain prose only, no markdown, no lists, no bold):`;
 }
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
@@ -45,6 +45,30 @@ function stripFences(text: string): string {
     .replace(/^```\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
+}
+
+function cleanAnswer(raw: string): { answer: string; confidence: "high" | "medium" | "low" } {
+  // Strip markdown: headings, bold, italic, bullets, numbered lists, code fences
+  let text = raw
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`[^`]*`/g, "")
+    .replace(/^#{1,6}\s+.*/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\*{1,3}([^*\n]+)\*{1,3}/g, "$1")
+    .replace(/_{1,2}([^_\n]+)_{1,2}/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  // Extract trailing confidence word if present
+  let confidence: "high" | "medium" | "low" = "medium";
+  const confMatch = text.match(/\n+(high|medium|low)\s*$/i);
+  if (confMatch) {
+    confidence = confMatch[1].toLowerCase() as "high" | "medium" | "low";
+    text = text.slice(0, confMatch.index).trim();
+  }
+
+  return { answer: text, confidence };
 }
 
 /* ── route handler ───────────────────────────────────────────────────────── */
@@ -145,26 +169,12 @@ export async function POST(req: NextRequest) {
         maxNewTokens: 512,
         temperature: 0.2,
       });
-      const parsed = JSON.parse(stripFences(raw)) as {
-        answer?: string;
-        sources?: string[];
-        confidence?: string;
-      };
-      if (parsed.answer) answer = parsed.answer;
-      if (parsed.confidence) {
-        const c = parsed.confidence.toLowerCase();
-        confidence = c === "high" || c === "medium" ? c : "low";
-      }
-      // Use LLM-provided sources if available, else fall back to retrieved sources
-      if (Array.isArray(parsed.sources) && parsed.sources.length > 0) {
-        return NextResponse.json<ArchivistData>(
-          { agent: "archivist", answer, sources: parsed.sources, confidence },
-          { status: 200 }
-        );
-      }
+      // Use cleanAnswer to strip all markdown/bullets/bold regardless of model behaviour
+      const cleaned = cleanAnswer(raw);
+      answer = cleaned.answer;
+      confidence = cleaned.confidence;
     } catch (llmErr) {
       console.warn("[archivist] watsonx RAG synthesis failed:", llmErr);
-      // Fall through — return raw retrieved context as answer
       answer = `Retrieved ${chunks.length} relevant research excerpt(s) but synthesis failed. Key sources: ${uniqueSources.join(", ")}`;
     }
 

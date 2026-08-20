@@ -13,17 +13,42 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ROUTING_PROMPT = (query: string) => `\
-Classify the following query into exactly one intent: sentinel, forecaster, or archivist.
-- sentinel   = asteroids, asteroid, NEO, near-Earth objects, close approach, planetary defense, orbit, trajectory
-- forecaster = solar flares, solar, space weather, CME, coronal, geomagnetic, DONKI, radiation, sun
-- archivist  = research, papers, literature, studies, what does research say, how do scientists, explain, history
+You are a query router for ORION Space Command. Route the query to one of three agents:
 
-Important: The user may have typos, poor grammar, or use slang. Ignore spelling errors and infer the correct domain from semantic meaning. Examples: "astroid" = sentinel, "sola flair" = forecaster, "reasearch" = archivist.
+SENTINEL — handles live asteroid and near-Earth object data from NASA NeoWs API.
+Choose sentinel when the query asks about: asteroids, NEO, near-Earth objects, close approaches, miss distance, PHO, planetary defense, asteroid size/speed/hazard, approaching objects this week.
+Examples of sentinel queries:
+- "show me asteroids approaching this week" → sentinel
+- "are there any potentially hazardous asteroids?" → sentinel
+- "what's the closest asteroid right now?" → sentinel
+- "give me a planetary defense briefing" → sentinel
+- "NEO close approach data" → sentinel
+- "astroid" → sentinel
 
-If the query is completely ambiguous or unrecognisable, default to archivist.
+FORECASTER — handles live solar weather data from NASA DONKI API.
+Choose forecaster when the query asks about: solar flares, space weather, CME, coronal mass ejections, X-class flares, M-class flares, solar activity, DONKI, geomagnetic storms, radiation risk, satellite risk, sun activity.
+Examples of forecaster queries:
+- "solar flare activity last 30 days" → forecaster
+- "have there been any X-class flares recently?" → forecaster
+- "what's the current space weather situation?" → forecaster
+- "risk to satellites from solar activity" → forecaster
+- "how active has the sun been?" → forecaster
+- "sola flair" → forecaster
+
+ARCHIVIST — handles research literature questions using a RAG knowledge base of astrophysics papers.
+Choose archivist ONLY when the query explicitly asks for research findings, papers, studies, how scientists work, or technical explanations grounded in literature (not live data).
+Examples of archivist queries:
+- "what does research say about asteroid deflection?" → archivist
+- "how do scientists predict solar flares?" → archivist
+- "explain kinetic impactor deflection strategies" → archivist
+
+Important rules:
+- If the query mentions live data (this week, right now, recently, last 30 days, current, today) → prefer sentinel or forecaster over archivist.
+- Ignore typos and slang — infer the correct domain from context.
+- If completely ambiguous, default to archivist.
 
 Output only a single line of valid JSON with no extra text:
-{"intent": "sentinel", "query": "the original or lightly corrected query"}
+{"intent": "sentinel", "query": "the original query"}
 
 Query to classify: ${query}
 
@@ -54,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     // Step 1 — classify intent via watsonx
     const rawClassification = await generateText(ROUTING_PROMPT(query.trim()), {
-      maxNewTokens: 64,
+      maxNewTokens: 32,
       temperature: 0,
     });
 
