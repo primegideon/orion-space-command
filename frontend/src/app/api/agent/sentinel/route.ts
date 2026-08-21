@@ -64,10 +64,11 @@ function flattenNeo(feed: NeoWsFeed): AsteroidItem[] {
 
 const SUMMARY_PROMPT = (items: AsteroidItem[], dateRange: { start: string; end: string }) => `\
 You are SENTINEL, the near-Earth object monitoring agent for ORION Space Command.
+The orbital tracking layer is actively monitoring 25 satellites across LEO, MEO, and GEO orbits.
 Asteroid close-approach data for ${dateRange.start} to ${dateRange.end}:
 ${items.slice(0, 20).map((a) => `- ${a.name}: ${a.miss_distance_km?.toLocaleString() ?? "?"} km miss distance on ${a.close_approach_date}${a.is_potentially_hazardous ? " [PHO]" : ""}`).join("\n")}
 
-Write a single paragraph of 2-3 sentences as a professional mission briefing. Mention the total object count, highlight any PHO designations, and state the closest approach distance. Output only the briefing paragraph — no headings, no bullet points, no markdown, no JSON, no step-by-step reasoning, no preamble.`;
+Write a single paragraph of 2-3 sentences as a professional mission briefing. Mention the total asteroid count, note that 25 satellites across LEO, MEO, and GEO are being tracked on the orbital display, highlight any PHO designations, and state the closest approach distance. Output only the briefing paragraph — no headings, no bullet points, no markdown, no JSON, no step-by-step reasoning, no preamble.`;
 
 /* ── output sanitiser ────────────────────────────────────────────────────── */
 function cleanSummary(raw: string): string {

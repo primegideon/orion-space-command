@@ -1,11 +1,18 @@
 "use client";
 
-import { useState, KeyboardEvent } from "react";
+import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import SentinelPanel, { SentinelData, AsteroidItem } from "@/components/SentinelPanel";
 import ForecasterPanel, { ForecasterData, FlareItem } from "@/components/ForecasterPanel";
 import ArchivistPanel, { ArchivistData } from "@/components/ArchivistPanel";
 import TelemetryConsole, { TelemetryLog } from "@/components/TelemetryConsole";
 import DetailPanel from "@/components/DetailPanel";
+import MitigationBanner from "@/components/MitigationBanner";
+import Sidebar, { ViewId } from "@/components/Sidebar";
+import AnalyticsView from "@/components/AnalyticsView";
+import ConstellationFleet from "@/components/ConstellationFleet";
+import MissionActivityLog from "@/components/MissionActivityLog";
+import GroundRelayGrid from "@/components/GroundRelayGrid";
+import SystemStatusModal from "@/components/SystemStatusModal";
 
 type AgentResult =
   | (SentinelData & { intent: "sentinel" })
@@ -14,25 +21,105 @@ type AgentResult =
   | { intent: "error"; error: string }
   | null;
 
-const STACK_BADGES = [
-  { id: "neows",    label: "NeoWs",    ver: "v1",       color: "var(--cyan)" },
-  { id: "watsonx",  label: "watsonx",  ver: "ai",       color: "var(--cyan)" },
-  { id: "docling",  label: "Docling",  ver: "v4",       color: "var(--emerald)" },
-  { id: "llama",    label: "Llama-4",  ver: "Maverick", color: "var(--amber)" },
-  { id: "supabase", label: "Supabase", ver: "pgvector", color: "var(--emerald)" },
-];
+/* ── Mission clock — live UTC + MET T+ ──────────────────────────────────── */
+const MET_EPOCH = new Date("2025-01-01T00:00:00Z"); // mission epoch
+
+function useMissionClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+  const utc = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}`;
+
+  const elapsed = Math.floor((now.getTime() - MET_EPOCH.getTime()) / 1000);
+  const hh = Math.floor(elapsed / 3600);
+  const mm = Math.floor((elapsed % 3600) / 60);
+  const ss = elapsed % 60;
+  const met = `T+${pad(hh, 2)}:${pad(mm)}:${pad(ss)}`;
+
+  return { utc, met };
+}
+
+/* ── Web Speech API type shim ─────────────────────────────────────────────── */
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+interface SpeechRecognitionInstance extends EventTarget {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start(): void;
+  stop(): void;
+  onresult: ((e: SpeechRecognitionEvent) => void) | null;
+  onerror: ((e: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+}
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+  }
+}
 
 export default function Home() {
-  const [query, setQuery] = useState("");
+  const [query, setQuery]   = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AgentResult>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]   = useState<string | null>(null);
 
-  // Telemetry console state
+  const { utc, met } = useMissionClock();
+
+  // View state
+  const [view, setView] = useState<ViewId>("telemetry");
+  const [exporting, setExporting] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
+
+  // Voice command
+  const [listening, setListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+
+  useEffect(() => {
+    setVoiceSupported(
+      typeof window !== "undefined" &&
+      !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+    );
+  }, []);
+
+  function toggleVoice() {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    if (!SR) return;
+    const recognition = new SR();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (e: SpeechRecognitionEvent) => {
+      const transcript = e.results[0]?.[0]?.transcript ?? "";
+      if (transcript) setQuery(transcript);
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend   = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }
+
+  // Telemetry console
   const [consoleLogs, setConsoleLogs] = useState<TelemetryLog[]>([]);
   const [consoleOpen, setConsoleOpen] = useState(false);
 
-  // Detail panel state
+  // Detail panel
   const [detailItem, setDetailItem] = useState<AsteroidItem | FlareItem | null>(null);
   const [detailType, setDetailType] = useState<"asteroid" | "flare" | null>(null);
 
@@ -53,13 +140,12 @@ export default function Home() {
     setConsoleLogs([]);
     setConsoleOpen(true);
 
-    addLog("INFO", "ORION Space Command — session initialized");
+    addLog("INFO",  "ORION Space Command — session initialized");
     addLog("ROUTE", "Dispatching query to ORION Master Router (watsonx)...");
-    addLog("LLM", "watsonx · llama-4-maverick-17b → intent classification");
+    addLog("LLM",   "watsonx · llama-4-maverick-17b → intent classification");
 
     const controller = new AbortController();
-    // 120 s hard timeout — two LLM calls (router + sub-agent) + NASA API can take 40-80s
-    const timer = setTimeout(() => controller.abort(), 120_000);
+    const timer = setTimeout(() => controller.abort(), 90_000);
 
     try {
       const res = await fetch("/api/agent", {
@@ -78,12 +164,12 @@ export default function Home() {
       } else if (data) {
         addLog("ROUTE", `Intent resolved: ${data.intent}`);
         addLog("FETCH", "Calling sub-agent flow...");
-        addLog("OK", `Response received — ${JSON.stringify(data).length} bytes`);
+        addLog("OK",    `Response received — ${JSON.stringify(data).length} bytes`);
       }
     } catch (e) {
       clearTimeout(timer);
       if (e instanceof DOMException && e.name === "AbortError") {
-        const msg = "Request timed out after 120 s. LangFlow is running but the model took too long — try again.";
+        const msg = "Request timed out — watsonx or NASA API is taking too long. Please try again.";
         setError(msg);
         addLog("WARN", msg);
       } else {
@@ -100,165 +186,291 @@ export default function Home() {
     if (e.key === "Enter") transmit();
   }
 
-  function openAsteroid(item: AsteroidItem) {
-    setDetailItem(item);
-    setDetailType("asteroid");
+  function openAsteroid(item: AsteroidItem) { setDetailItem(item); setDetailType("asteroid"); }
+  function openFlare(item: FlareItem)        { setDetailItem(item); setDetailType("flare"); }
+  function closeDetail()                     { setDetailItem(null); setDetailType(null); }
+
+  async function handleExportPdf() {
+    setExporting(true);
+    try {
+      const { exportBriefing } = await import("@/lib/exportPdf");
+      await exportBriefing(result, consoleLogs);
+    } finally {
+      setExporting(false);
+    }
   }
 
-  function openFlare(item: FlareItem) {
-    setDetailItem(item);
-    setDetailType("flare");
-  }
+  // Accumulate last-seen data for both agents so the banner persists
+  // across intent switches (e.g. querying forecaster doesn't wipe sentinel)
+  const [lastForecaster, setLastForecaster] = useState<ForecasterData | null>(null);
+  const [lastSentinel,   setLastSentinel]   = useState<SentinelData   | null>(null);
 
-  function closeDetail() {
-    setDetailItem(null);
-    setDetailType(null);
-  }
+  useEffect(() => {
+    if (result?.intent === "forecaster") setLastForecaster(result as ForecasterData);
+    if (result?.intent === "sentinel")   setLastSentinel(result as SentinelData);
+  }, [result]);
+
+  const forecasterData = lastForecaster;
+  const sentinelData   = lastSentinel;
 
   return (
     <div className="h-screen flex flex-col" style={{ background: "var(--bg)" }}>
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-3 glass"
-        style={{ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }}>
-
-        {/* Wordmark */}
-        <div className="flex items-center gap-3">
-          {/* hex icon */}
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <polygon
-              points="14,2 25,8 25,20 14,26 3,20 3,8"
-              stroke="var(--cyan)" strokeWidth="1.5" fill="none" opacity="0.8"
-            />
-            <polygon
-              points="14,7 21,11 21,18 14,22 7,18 7,11"
-              fill="var(--cyan)" opacity="0.18"
-            />
-            <circle cx="14" cy="14" r="2.5" fill="var(--cyan)" opacity="0.9" />
-          </svg>
-          <div>
-            <h1 className="font-mono font-bold text-base tracking-[0.22em] uppercase text-white leading-none">
-              ORION
-            </h1>
-            <p className="text-[10px] tracking-widest uppercase mt-0.5" style={{ color: "var(--muted)" }}>
-              Space Command
-            </p>
+      <header
+        className="sticky top-0 z-20 glass flex items-center gap-3 px-4"
+        style={{
+          borderRadius: 0,
+          borderLeft: "none", borderRight: "none", borderTop: "none",
+          height: 52,
+        }}
+      >
+        {/* ── Zone 1: Logo + Active Uplink (always visible) ─────────────── */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Hex logo */}
+          <div className="flex items-center gap-2 shrink-0">
+            <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
+              <polygon points="14,2 25,8 25,20 14,26 3,20 3,8" stroke="var(--cyan)" strokeWidth="1.5" fill="none" opacity="0.8" />
+              <polygon points="14,7 21,11 21,18 14,22 7,18 7,11" fill="var(--cyan)" opacity="0.18" />
+              <circle cx="14" cy="14" r="2.5" fill="var(--cyan)" opacity="0.9" />
+            </svg>
+            <div className="leading-none">
+              <p className="font-mono font-bold text-[13px] tracking-[0.2em] uppercase text-white">ORION</p>
+              <p className="hidden sm:block text-[9px] tracking-widest uppercase" style={{ color: "var(--muted)" }}>Space Command</p>
+            </div>
           </div>
+
+          {/* Divider — only md+ */}
+          <div className="hidden md:block h-5 w-px shrink-0" style={{ background: "rgba(255,255,255,0.1)" }} />
+
+          {/* Active uplink — only md+ */}
+          <div className="hidden md:flex items-center gap-1.5">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                style={{ background: "var(--emerald)" }} />
+              <span className="relative inline-flex rounded-full h-2 w-2"
+                style={{ background: "var(--emerald)" }} />
+            </span>
+            <span className="font-mono text-[10px] tracking-widest uppercase"
+              style={{ color: "var(--emerald)" }}>UPLINK:</span>
+            <span className="font-mono text-[10px]"
+              style={{ color: "rgba(255,255,255,0.55)" }}>GLOBAL DSN‑01</span>
+          </div>
+
+          {/* Uplink dot only — xs/sm fallback */}
+          <span className="flex md:hidden relative h-2 w-2 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+              style={{ background: "var(--emerald)" }} />
+            <span className="relative inline-flex rounded-full h-2 w-2"
+              style={{ background: "var(--emerald)" }} />
+          </span>
         </div>
 
-        {/* Tech-stack badges */}
-        <div className="hidden sm:flex items-center gap-2 flex-wrap justify-end">
-          {STACK_BADGES.map(({ id, label, ver, color }) => (
-            <span
-              key={id}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono tracking-wide"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                color: "rgba(255,255,255,0.65)",
-              }}
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full shrink-0${loading ? " animate-badge-glow" : ""}`}
-                style={{
-                  background: color,
-                  boxShadow: `0 0 6px ${color}`,
-                }}
-              />
-              {label}
-              <span style={{ color: "rgba(255,255,255,0.35)" }}>{ver}</span>
-            </span>
-          ))}
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* ── Zone 2: Global System Status (sm+) ───────────────────────── */}
+        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full shrink-0"
+          style={{
+            background: "rgba(52,211,153,0.08)",
+            border: "1px solid rgba(52,211,153,0.25)",
+          }}>
+          <span className="w-1.5 h-1.5 rounded-full shrink-0"
+            style={{ background: "var(--emerald)", boxShadow: "0 0 5px var(--emerald)" }} />
+          <span className="font-mono text-[10px] tracking-widest uppercase font-semibold"
+            style={{ color: "var(--emerald)" }}>
+            <span className="hidden lg:inline">STATUS: </span>NOMINAL
+          </span>
+        </div>
+
+        {/* ── Zone 3: Mission Clock (md+) ──────────────────────────────── */}
+        <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg shrink-0"
+          style={{
+            background: "rgba(0,210,230,0.06)",
+            border: "1px solid rgba(0,210,230,0.15)",
+          }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+          </svg>
+          <span className="font-mono text-[11px] font-semibold tracking-widest tabular-nums"
+            style={{ color: "var(--cyan)" }}>{utc} Z</span>
+          <span className="hidden lg:inline font-mono text-[10px]"
+            style={{ color: "rgba(255,255,255,0.2)" }}>|</span>
+          <span className="hidden lg:inline font-mono text-[10px] tracking-widest tabular-nums"
+            style={{ color: "rgba(255,255,255,0.4)" }}>MET {met}</span>
+        </div>
+
+        {/* ── Zone 4: Operator Clearance (sm+) ─────────────────────────── */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg shrink-0"
+          style={{
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          {/* Full label on lg+, condensed on smaller */}
+          <span className="hidden lg:inline font-mono text-[10px]"
+            style={{ color: "rgba(255,255,255,0.4)" }}>OP‑ID:</span>
+          <span className="font-mono text-[10px] font-semibold"
+            style={{ color: "rgba(255,255,255,0.75)" }}>ADMIN‑01</span>
+          <span className="hidden sm:inline font-mono text-[10px]"
+            style={{ color: "rgba(255,255,255,0.2)" }}>|</span>
+          <span className="hidden sm:inline font-mono text-[10px]"
+            style={{ color: "rgba(255,255,255,0.4)" }}>CLEARANCE:</span>
+          <span className="font-mono text-[10px] font-bold tracking-widest"
+            style={{ color: "var(--amber)" }}>ALPHA</span>
         </div>
       </header>
 
-      {/* ── Main ───────────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col gap-5 px-5 py-5 max-w-screen-xl w-full mx-auto pb-16 min-h-0 overflow-y-auto">
+      {/* ── Body (sidebar + main) ───────────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0">
 
-        {/* Query bar */}
-        <div
-          className={`glass flex gap-2 p-2${loading ? " glass-loading" : ""}`}
-          style={{ borderRadius: "14px" }}
-        >
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
-            disabled={loading}
-            placeholder='Enter mission query — e.g. "show me approaching asteroids"'
-            className="flex-1 bg-transparent px-3 py-2 text-sm font-mono outline-none placeholder:text-[var(--muted)] disabled:opacity-50 text-[var(--foreground)]"
-          />
-          <button
-            onClick={transmit}
-            disabled={loading || !query.trim()}
-            className="px-5 py-2 rounded-[10px] text-xs font-mono font-semibold tracking-widest uppercase transition-all duration-200
-              disabled:opacity-25 disabled:saturate-0 disabled:cursor-not-allowed flex items-center gap-2 shrink-0"
-            style={{
-              background: "var(--cyan)",
-              color: "#04090f",
-            }}
-          >
-            {loading ? (
-              <>
-                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                  <path className="opacity-80" fill="currentColor"
-                    d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z" />
-                </svg>
-                Routing
-              </>
-            ) : "Transmit"}
-          </button>
-        </div>
+        {/* Sidebar */}
+        <Sidebar
+          view={view}
+          onView={setView}
+          onExportPdf={handleExportPdf}
+          onSystemStatus={() => setStatusOpen(true)}
+          exporting={exporting}
+        />
 
-        {/* Error banner */}
-        {error && (
+        {/* Main content */}
+        <main className="flex-1 flex flex-col gap-5 px-5 py-5 max-w-screen-xl w-full mx-auto pb-16 min-h-0 overflow-y-auto">
+
+          {/* Query bar */}
           <div
-            className="glass rounded-xl px-4 py-3 text-sm font-mono animate-fade-in"
-            style={{
-              borderColor: "rgba(248,113,113,0.3)",
-              color: "var(--red)",
-              background: "var(--red-dim)",
-              wordBreak: "break-all",
-              overflowWrap: "anywhere",
-              whiteSpace: "pre-wrap",
-              overflow: "visible",
-              maxHeight: "none",
-              textOverflow: "unset",
-            }}
+            className={`glass flex gap-2 p-2${loading ? " glass-loading" : ""}`}
+            style={{ borderRadius: "14px" }}
           >
-            <span className="opacity-70 mr-2 font-mono">[WARN]</span>{error}
-          </div>
-        )}
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onKeyDown}
+              disabled={loading}
+              placeholder='Enter mission query — e.g. "show me approaching asteroids"'
+              className="flex-1 bg-transparent px-3 py-2 text-sm font-mono outline-none placeholder:text-[var(--muted)] disabled:opacity-50 text-[var(--foreground)]"
+            />
 
-        {/* ── Bento grid ─────────────────────────────────────────────── */}
-        <div
-          className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0"
-          style={{ gridAutoRows: "minmax(450px, 1fr)", alignItems: "stretch" }}
-        >
-          <SentinelPanel
-            data={result?.intent === "sentinel" ? (result as SentinelData) : null}
-            loading={loading && (!activeIntent || activeIntent === "sentinel")}
-            active={activeIntent === "sentinel" || activeIntent === null}
-            dimmed={activeIntent !== null && activeIntent !== "sentinel"}
-            onSelectItem={openAsteroid}
-          />
-          <ForecasterPanel
-            data={result?.intent === "forecaster" ? (result as ForecasterData) : null}
-            loading={loading && (!activeIntent || activeIntent === "forecaster")}
-            active={activeIntent === "forecaster" || activeIntent === null}
-            dimmed={activeIntent !== null && activeIntent !== "forecaster"}
-            onSelectItem={openFlare}
-          />
-          <ArchivistPanel
-            data={result?.intent === "archivist" ? (result as ArchivistData) : null}
-            loading={loading && (!activeIntent || activeIntent === "archivist")}
-            active={activeIntent === "archivist" || activeIntent === null}
-            dimmed={activeIntent !== null && activeIntent !== "archivist"}
-          />
-        </div>
-      </main>
+            {voiceSupported && (
+              <button
+                type="button"
+                onClick={toggleVoice}
+                disabled={loading}
+                title={listening ? "Stop listening" : "Speak your query"}
+                aria-label={listening ? "Stop voice input" : "Start voice input"}
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{
+                  background: listening ? "rgba(248,113,113,0.15)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${listening ? "rgba(248,113,113,0.4)" : "rgba(255,255,255,0.08)"}`,
+                  color: listening ? "var(--red)" : "var(--muted)",
+                }}
+              >
+                {listening ? (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="4" y="4" width="16" height="16" rx="2" />
+                  </svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="2" width="6" height="12" rx="3" />
+                    <path d="M5 10a7 7 0 0 0 14 0" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                    <line x1="9"  y1="22" x2="15" y2="22" />
+                  </svg>
+                )}
+              </button>
+            )}
+
+            <button
+              onClick={transmit}
+              disabled={loading || !query.trim()}
+              className="px-5 py-2 rounded-[10px] text-xs font-mono font-semibold tracking-widest uppercase transition-all duration-200
+                disabled:opacity-25 disabled:saturate-0 disabled:cursor-not-allowed flex items-center gap-2 shrink-0"
+              style={{ background: "var(--cyan)", color: "#04090f" }}
+            >
+              {loading ? (
+                <>
+                  <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                    <path className="opacity-80" fill="currentColor"
+                      d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z" />
+                  </svg>
+                  Routing
+                </>
+              ) : "Transmit"}
+            </button>
+          </div>
+
+          {/* Error banner */}
+          {error && (
+            <div
+              className="glass rounded-xl px-4 py-3 text-sm font-mono animate-fade-in"
+              style={{
+                borderColor: "rgba(248,113,113,0.3)",
+                color: "var(--red)",
+                background: "var(--red-dim)",
+                wordBreak: "break-all",
+                overflowWrap: "anywhere",
+                whiteSpace: "pre-wrap",
+                overflow: "visible",
+                maxHeight: "none",
+                textOverflow: "unset",
+              }}
+            >
+              <span className="opacity-70 mr-2 font-mono">[WARN]</span>{error}
+            </div>
+          )}
+
+          {/* Mitigation banner — only shown when live X-flare or PHO data present */}
+          <MitigationBanner forecaster={forecasterData} sentinel={sentinelData} />
+
+          {/* ── Telemetry view ─────────────────────────────────────────── */}
+          {view === "telemetry" && (
+            <div
+              className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0"
+              style={{ gridAutoRows: "minmax(450px, 1fr)", alignItems: "stretch" }}
+            >
+              <SentinelPanel
+                data={result?.intent === "sentinel" ? (result as SentinelData) : null}
+                loading={loading && (!activeIntent || activeIntent === "sentinel")}
+                active={activeIntent === "sentinel" || activeIntent === null}
+                dimmed={activeIntent !== null && activeIntent !== "sentinel"}
+                onSelectItem={openAsteroid}
+              />
+              <ForecasterPanel
+                data={result?.intent === "forecaster" ? (result as ForecasterData) : null}
+                loading={loading && (!activeIntent || activeIntent === "forecaster")}
+                active={activeIntent === "forecaster" || activeIntent === null}
+                dimmed={activeIntent !== null && activeIntent !== "forecaster"}
+                onSelectItem={openFlare}
+              />
+              <ArchivistPanel
+                data={result?.intent === "archivist" ? (result as ArchivistData) : null}
+                loading={loading && (!activeIntent || activeIntent === "archivist")}
+                active={activeIntent === "archivist" || activeIntent === null}
+                dimmed={activeIntent !== null && activeIntent !== "archivist"}
+              />
+            </div>
+          )}
+
+          {/* ── Analytics / Threat & Risk view ─────────────────────────── */}
+          {view === "analytics" && (
+            <AnalyticsView forecaster={forecasterData} exporting={exporting} />
+          )}
+
+          {/* ── Constellation Fleet ─────────────────────────────────────── */}
+          {view === "fleet" && <ConstellationFleet />}
+
+          {/* ── Mission Activity Log ────────────────────────────────────── */}
+          {view === "log" && <MissionActivityLog logs={consoleLogs} />}
+
+          {/* ── Ground Relay Grid ───────────────────────────────────────── */}
+          {view === "ground" && <GroundRelayGrid />}
+
+        </main>
+      </div>
 
       {/* ── Footer ─────────────────────────────────────────────────────── */}
       <footer className="px-6 py-3 text-center text-[11px] font-mono tracking-wide"
@@ -267,6 +479,9 @@ export default function Home() {
         <span className="text-white/70 font-semibold">IBM watsonx</span>
         {" "}·{" "}Llama-4 Maverick · NASA APIs · IBM Docling · Supabase
       </footer>
+
+      {/* ── System status modal ────────────────────────────────────────── */}
+      <SystemStatusModal open={statusOpen} onClose={() => setStatusOpen(false)} />
 
       {/* ── Detail panel ───────────────────────────────────────────────── */}
       <DetailPanel item={detailItem} type={detailType} onClose={closeDetail} />

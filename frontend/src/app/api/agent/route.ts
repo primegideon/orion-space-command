@@ -70,6 +70,62 @@ function stripFences(text: string): string {
     .trim();
 }
 
+/* ── Fast keyword router — runs before any LLM call ─────────────────────── */
+
+// Hard live-data signals — user clearly wants current data right now
+const SENTINEL_LIVE =
+  /\b(show me|approaching|this week|right now|today|closest|fastest|biggest|largest|smallest|coming close|miss distance|close approach|next 7 days|coming up|give me a.{0,20}briefing)\b/i;
+
+const FORECASTER_LIVE =
+  /\b(last 30 days|recently|current|any.{0,10}flares|show me.{0,20}solar|give me.{0,20}solar|elevated radiation|risk to satellites|how active has the sun)\b/i;
+
+// Domain topic keywords (broad — used together with intent signals)
+const SENTINEL_TOPIC =
+  /\b(asteroid|asteroids|neo|neos|near.earth|close.approach|miss.distance|pho|planetary.defense|space.rock|flyby|impactor|meteor|meteorite|comet)\b/i;
+
+const FORECASTER_TOPIC =
+  /\b(solar.?flare|flares?|space.weather|cme|coronal.mass|geomagnetic|donki|x.class|m.class|c.class|radiation.storm|sun.activit|solar.activit|solar.storm|aurora|kp.index|sep.event|magnetogram)\b/i;
+
+// Archivist signals — explicit research/academic framing OR "explain"/"what is"/"how does" WITHOUT live-data intent
+const ARCHIVIST_STRONG =
+  /\b(research|paper|papers|study|studies|literature|scientist|scientists|findings|published|methodology|theory|theories|arxiv|journal|peer.reviewed|academic|what does research|how do scientists|torino scale|hmi|cnn model|machine learning|survey completeness|debiased|readiness)\b/i;
+
+const ARCHIVIST_EXPLAIN =
+  /^(explain|what is|what are|how does|how do|what role|describe|define|tell me about)\b/i;
+
+function keywordRoute(q: string): string | null {
+  const hasSentinelLive    = SENTINEL_LIVE.test(q);
+  const hasForecasterLive  = FORECASTER_LIVE.test(q);
+  const hasSentinelTopic   = SENTINEL_TOPIC.test(q);
+  const hasForecasterTopic = FORECASTER_TOPIC.test(q);
+  const hasArchivistStrong = ARCHIVIST_STRONG.test(q);
+  const hasArchivistExplain = ARCHIVIST_EXPLAIN.test(q);
+
+  // ── Rule 1: Explicit live-data intent → always live agents ──────────────
+  // "show me asteroids this week", "any flares recently?" etc.
+  if (hasSentinelLive && hasSentinelTopic && !hasArchivistStrong) return "sentinel";
+  if (hasForecasterLive && hasForecasterTopic && !hasArchivistStrong) return "forecaster";
+
+  // ── Rule 2: Strong archivist signal → archivist wins over domain topic ──
+  // "what does research say about asteroid deflection?" — has asteroid keyword but research wins
+  // "how do scientists predict solar flares?" — has flare keyword but scientists wins
+  if (hasArchivistStrong) return "archivist";
+
+  // ── Rule 3: Explain-style + NO live intent → archivist ──────────────────
+  // "explain near-Earth object detection methods" (no "show me", "this week" etc.)
+  // "explain CNN models for space weather prediction"
+  // "what is the Torino scale?"
+  if (hasArchivistExplain && !hasSentinelLive && !hasForecasterLive) return "archivist";
+
+  // ── Rule 4: Pure topic match with no research framing → live agents ──────
+  if (hasSentinelTopic && !hasForecasterTopic) return "sentinel";
+  if (hasForecasterTopic && !hasSentinelTopic) return "forecaster";
+  if (hasSentinelTopic && hasForecasterTopic)  return "sentinel"; // asteroid+solar → sentinel
+
+  // Nothing matched clearly — fall through to LLM
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body: unknown = await req.json();
@@ -81,52 +137,44 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 1 — classify intent via watsonx
-    const rawClassification = await generateText(ROUTING_PROMPT(query.trim()), {
-      maxNewTokens: 32,
-      temperature: 0,
-    });
+    const q = query.trim();
 
-    let intent = "archivist";   // safe default
-    let subQuery = query.trim();
-    try {
-      // Primary: strip fences and parse
-      let toParse = stripFences(rawClassification);
-      // Fallback: find first {...} JSON object in the raw text
-      if (!toParse.startsWith("{")) {
-        const jsonMatch = rawClassification.match(/\{[\s\S]*?\}/);
-        if (jsonMatch) toParse = jsonMatch[0];
+    // Step 1 — try fast keyword match first (no LLM call, no latency)
+    let intent = keywordRoute(q);
+    let subQuery = q;
+
+    // Step 2 — only call watsonx if keywords were ambiguous
+    if (!intent) {
+      try {
+        const rawClassification = await generateText(ROUTING_PROMPT(q), {
+          maxNewTokens: 32,
+          temperature: 0,
+        });
+
+        let toParse = stripFences(rawClassification);
+        if (!toParse.startsWith("{")) {
+          const jsonMatch = rawClassification.match(/\{[\s\S]*?\}/);
+          if (jsonMatch) toParse = jsonMatch[0];
+        }
+        const parsed = JSON.parse(toParse) as { intent: string; query: string };
+        const parsedIntent = parsed.intent?.toLowerCase();
+        if (["sentinel", "forecaster", "archivist"].includes(parsedIntent)) {
+          intent = parsedIntent;
+        }
+        subQuery = parsed.query ?? q;
+      } catch {
+        // LLM unavailable or returned bad JSON — keyword-scan as last resort
+        console.warn("[router] LLM fallback failed, using keyword scan on raw query");
+        if (ARCHIVIST_STRONG.test(q) || ARCHIVIST_EXPLAIN.test(q)) intent = "archivist";
+        else if (SENTINEL_TOPIC.test(q)) intent = "sentinel";
+        else if (FORECASTER_TOPIC.test(q)) intent = "forecaster";
+        else intent = "sentinel";
       }
-      const parsed = JSON.parse(toParse) as {
-        intent: string;
-        query: string;
-      };
-      const parsedIntent = parsed.intent?.toLowerCase();
-      // Only accept a known intent — otherwise keep the archivist default
-      if (["sentinel", "forecaster", "archivist"].includes(parsedIntent)) {
-        intent = parsedIntent;
-      }
-      subQuery = parsed.query ?? query.trim();
-    } catch {
-      // Model returned conversational text instead of JSON.
-      // Keyword-scan the raw output and query to pick the best agent rather than always defaulting to archivist.
-      console.warn("[router] JSON parse failed, keyword fallback. Raw:", rawClassification.slice(0, 200));
-      const q = query.toLowerCase();
-      const rawLow = rawClassification.toLowerCase();
-      if (
-        rawLow.includes("sentinel") ||
-        /asteroid|neo|near.earth|close.approach|hazardous|planetary.defense|space.rock/.test(q)
-      ) {
-        intent = "sentinel";
-      } else if (
-        rawLow.includes("forecaster") ||
-        /solar.flare|space.weather|cme|coronal|geomagnetic|donki|x.class|m.class|sun.activ/.test(q)
-      ) {
-        intent = "forecaster";
-      } else {
-        intent = "archivist";
-      }
-      subQuery = query.trim();
+    }
+
+    // Final safety net
+    if (!intent || !["sentinel", "forecaster", "archivist"].includes(intent)) {
+      intent = "sentinel";
     }
 
     // Step 2 — forward to the relevant sub-agent by making an internal fetch

@@ -54,7 +54,7 @@ function RadarIdle() {
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-10 select-none">
+    <div className="flex flex-col items-center justify-center gap-4 w-full h-full min-h-[320px] select-none">
       {/* radar dish */}
       <div className="relative w-24 h-24">
         {/* rings */}

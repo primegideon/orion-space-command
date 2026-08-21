@@ -348,6 +348,91 @@ orion-space-command/
 
 ---
 
+## 📖 How to Use & Read This System
+
+ORION is designed as a multi-view aerospace command terminal. Here is how to navigate the interface:
+
+**The Global Header**
+The top bar is your persistent mission status. It tracks the active ground relay uplink (pulsing green dot), global threat status badge, live UTC clock and Mission Elapsed Time (MET), and your operator clearance level.
+
+**Voice & Text Command**
+Use the main input bar to query the system. Click the microphone icon to dictate natural language queries (e.g., *"Show me approaching asteroids"*), then click **Transmit** to route the query through the watsonx intent classifier. The system automatically selects the correct specialist agent — no manual routing required.
+
+**Navigation Rail (Left Sidebar)**
+Click the `‹` chevron to expand or collapse the sidebar at any time.
+
+| View | Icon | Description |
+|------|------|-------------|
+| **Telemetry Core** | Signal waves | The primary live-fire dashboard featuring the Sentinel (NEO tracking + orbital diagram), Forecaster (solar weather + risk model), and Archivist (RAG research database). |
+| **Threat & Risk** | Star shield | Toggles between 90-day historical data charts and a simulated live heuristic analysis of orbital debris drag, cybersecurity/spectrum integrity, and international data compliance. |
+| **Constellation** | Globe/orbit | A fleet overview monitoring orbital bands, battery health (%), solar power output, signal strength (dBm), and operational health of all tracked satellites. |
+| **Mission Log** | Document | An audit trail of recent LLM queries showing agent routing decisions, end-to-end latency, token usage, and the live telemetry log from the current session. |
+| **Ground Relay** | Antenna | An equirectangular world map and status table showing real-time uplink/downlink status, data rates, elevation angles, and next contact windows for global Deep Space Network (DSN) nodes. |
+
+**Utilities (Bottom of Sidebar)**
+
+| Button | Description |
+|--------|-------------|
+| **System Status** | Opens a modal that live-probes all six API dependencies (NASA NeoWs, DONKI, Supabase, IBM watsonx, IAM, Docling) and reports latency and uptime. |
+| **Export PDF** | Generates a client-side PDF mission briefing including mission timestamp, active threat status, satellite insurance risk assessment, and the full telemetry log from the current session. When clicked, the Data Compliance Gateway in the Threat Matrix view animates through its regulatory verification sequence. |
+
+**Mitigation Banner**
+When a live query returns an X-class or M5+ solar flare, or a PHO asteroid approach, a colour-coded alert banner automatically appears above the dashboard grid. Severity levels are `WATCH → ELEVATED → SEVERE → CRITICAL`, and when both a flare and asteroid trigger simultaneously the level is automatically escalated. The banner is dismissible and re-appears on each new query.
+
+---
+
+## 🖼️ System Gallery
+
+### Telemetry Core — Live Agent Dashboard
+<p align="center">
+  <img src="./assets/01-telemetry-core.png" alt="Telemetry Core — Live Dashboard" width="90%">
+  <br/><em>The primary command view: Sentinel asteroid tracker, Forecaster solar weather, and Archivist RAG panel side-by-side with live orbital diagram.</em>
+</p>
+
+### Historical Analytics — 90-Day Solar Data
+<p align="center">
+  <img src="./assets/02-historical-analytics.png" alt="Historical Analytics View" width="90%">
+  <br/><em>90-day flare frequency line chart, risk radar (current vs average), and CME propagation speed bars with standard mitigation protocol cards.</em>
+</p>
+
+### Advanced Threat Matrix
+<p align="center">
+  <img src="./assets/03-threat-matrix.png" alt="Advanced Threat Matrix" width="90%">
+  <br/><em>Three-module heuristic analysis: Orbital Debris & Drag (driven by live flare data), Cybersecurity & Spectrum monitor, and Data Compliance Gateway.</em>
+</p>
+
+### Constellation Fleet
+<p align="center">
+  <img src="./assets/04-constellation-fleet.png" alt="Constellation Fleet View" width="90%">
+  <br/><em>Full fleet telemetry table across LEO/MEO/GEO/HEO orbital bands with battery, solar output, signal strength, and health status per satellite.</em>
+</p>
+
+### Mission Activity Log
+<p align="center">
+  <img src="./assets/05-mission-log.png" alt="Mission Activity Log" width="90%">
+  <br/><em>Audit trail of recent watsonx queries with agent routing history, latency metrics, token usage, and live current-session console output.</em>
+</p>
+
+### Ground Relay Grid — World Map
+<p align="center">
+  <img src="./assets/06-ground-relay-map.png" alt="Ground Relay Map" width="90%">
+  <br/><em>Equirectangular projection of global ground station coverage. Pulsing rings indicate active uplink/downlink nodes.</em>
+</p>
+
+### Ground Relay Grid — Station Table
+<p align="center">
+  <img src="./assets/07-ground-relay-table.png" alt="Ground Relay Table" width="90%">
+  <br/><em>DSN/ESA/JAXA/ISRO/SSC/KSAT station status table with live data rates, elevation angles, frequency bands, and next contact windows.</em>
+</p>
+
+### System Status Modal
+<p align="center">
+  <img src="./assets/08-system-status.png" alt="System Status Modal" width="60%">
+  <br/><em>Live dependency health modal — probes all six API services on open and reports latency and uptime per service.</em>
+</p>
+
+---
+
 ## 🧪 Sample Mission Queries
 
 ### 🛰️ Sentinel — Near-Earth Objects

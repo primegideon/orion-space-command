@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import FlareChart from "./FlareChart";
+import RiskMatrix from "./RiskMatrix";
 
 export interface FlareItem {
   flr_id: string;
@@ -48,9 +50,8 @@ function WaveIdle() {
   const tickerText = "MONITORING SOLAR ACTIVITY · MONITORING SOLAR ACTIVITY · ";
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-10 select-none overflow-hidden w-full">
-      {/* waveform */}
-      <div className="flex items-end gap-[3px]" style={{ height: 52 }}>
+    <div className="flex flex-col items-center justify-center gap-4 w-full h-full min-h-[320px] select-none overflow-hidden">
+      <div className="flex items-end justify-center gap-[3px]" style={{ height: 52 }}>
         {heights.map((h, i) => (
           <div
             key={i}
@@ -65,9 +66,7 @@ function WaveIdle() {
           />
         ))}
       </div>
-
-      {/* scrolling ticker */}
-      <div className="w-full overflow-hidden" style={{ maxWidth: 280 }}>
+      <div className="overflow-hidden" style={{ width: "100%", maxWidth: 280 }}>
         <div
           className="whitespace-nowrap text-[10px] font-mono tracking-[0.15em] uppercase"
           style={{
@@ -83,7 +82,41 @@ function WaveIdle() {
   );
 }
 
+/* ── Tab toggle ──────────────────────────────────────────────────────────── */
+type Tab = "telemetry" | "risk";
+
+interface TabToggleProps {
+  active: Tab;
+  onChange: (t: Tab) => void;
+}
+
+function TabToggle({ active, onChange }: TabToggleProps) {
+  return (
+    <div
+      className="flex w-full shrink-0 rounded-lg p-0.5 gap-0.5"
+      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}
+    >
+      {(["telemetry", "risk"] as Tab[]).map((t) => (
+        <button
+          key={t}
+          onClick={() => onChange(t)}
+          className="flex-1 py-1.5 rounded-md text-[10px] font-mono tracking-widest uppercase transition-all duration-200 text-center"
+          style={
+            active === t
+              ? { background: "var(--amber)", color: "#04090f", fontWeight: 700 }
+              : { color: "var(--muted)" }
+          }
+        >
+          {t === "telemetry" ? "Telemetry" : "Risk Model"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ── Main component ──────────────────────────────────────────────────────── */
 export default function ForecasterPanel({ data, loading, active, dimmed, onSelectItem }: Props) {
+  const [tab, setTab] = useState<Tab>("telemetry");
   const displayed = data?.items?.slice(0, 8) ?? [];
   const overflow  = (data?.items?.length ?? 0) - 8;
 
@@ -93,7 +126,7 @@ export default function ForecasterPanel({ data, loading, active, dimmed, onSelec
       ${dimmed ? "panel-inactive" : ""}`}>
 
       {/* Header — pinned */}
-      <div className="flex items-start justify-between shrink-0 mb-4">
+      <div className="flex items-start justify-between shrink-0 mb-3">
         <div>
           <span className="label">Forecaster</span>
           <h2 className="font-mono font-semibold text-[15px] leading-snug mt-0.5"
@@ -107,80 +140,96 @@ export default function ForecasterPanel({ data, loading, active, dimmed, onSelec
         </span>
       </div>
 
+      {/* Tab toggle — only shown when data is loaded */}
+      {!loading && data && !data.error && (
+        <div className="shrink-0 mb-3">
+          <TabToggle active={tab} onChange={setTab} />
+        </div>
+      )}
+
       {/* Scrollable body */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin flex flex-col gap-3">
 
-      {/* Loading skeletons */}
-      {loading && (
-        <div className="flex flex-col gap-2 animate-fade-in">
-          {[100, 75, 90, 65, 80].map((w, i) => (
-            <div key={i} className="skeleton h-12 rounded-xl" style={{ width: `${w}%` }} />
-          ))}
-        </div>
-      )}
-
-      {/* Error */}
-      {!loading && data?.error && (
-        <p className="text-[var(--red)] text-xs font-mono">{data.error}</p>
-      )}
-
-      {/* Idle */}
-      {!loading && !data && <WaveIdle />}
-
-      {/* Active data */}
-      {!loading && data && !data.error && (
-        <div className="flex flex-col gap-3 animate-fade-in">
-          {/* Solar weather time-series charts */}
-          {data.items.length > 0 && <FlareChart items={data.items} />}
-
-          <p className="text-[13px] leading-relaxed" style={{ color: "#d4b896" }}>{data.summary}</p>
-
-          <div className="flex flex-col gap-2">
-            {displayed.map((f, i) => (
-              <div
-                key={i}
-                className="flex gap-3 items-start rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.06] cursor-pointer"
-                style={{ background: "rgba(255,255,255,0.035)", border: "1px solid var(--border)" }}
-                onClick={() => onSelectItem?.(f)}
-              >
-                {/* class badge */}
-                <span
-                  className="shrink-0 inline-block text-[11px] font-mono font-bold px-2 py-0.5 rounded-md whitespace-nowrap mt-0.5"
-                  style={classBadgeStyle(f.class_type)}
-                >
-                  {f.class_type ?? "?"}
-                </span>
-
-                <div className="flex flex-col gap-0.5 text-[12px] min-w-0">
-                  <span className="font-mono text-white/75">
-                    {formatTime(f.begin_time)}
-                    <span className="mx-1 opacity-40">→</span>
-                    {formatTime(f.peak_time)}
-                  </span>
-                  <div className="flex gap-3 flex-wrap">
-                    {f.source_location && (
-                      <span className="font-mono text-[11px]" style={{ color: "var(--muted)" }}>
-                        {f.source_location}
-                      </span>
-                    )}
-                    {f.active_region != null && (
-                      <span className="font-mono text-[11px]" style={{ color: "var(--muted)" }}>
-                        AR {f.active_region}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+        {/* Loading skeletons */}
+        {loading && (
+          <div className="flex flex-col gap-2 animate-fade-in">
+            {[100, 75, 90, 65, 80].map((w, i) => (
+              <div key={i} className="skeleton h-12 rounded-xl" style={{ width: `${w}%` }} />
             ))}
           </div>
+        )}
 
-          {overflow > 0 && (
-            <p className="text-[11px] font-mono" style={{ color: "var(--muted)" }}>
-              +{overflow} more events
-            </p>
-          )}
-        </div>
-      )}
+        {/* Error */}
+        {!loading && data?.error && (
+          <p className="text-[var(--red)] text-xs font-mono">{data.error}</p>
+        )}
+
+        {/* Idle */}
+        {!loading && !data && <WaveIdle />}
+
+        {/* ── Active data ──────────────────────────────────────────────── */}
+        {!loading && data && !data.error && (
+          <>
+            {/* ── Tab 1: Telemetry ── */}
+            {tab === "telemetry" && (
+              <div className="flex flex-col gap-3 animate-fade-in">
+                {data.items.length > 0 && <FlareChart items={data.items} />}
+
+                <p className="text-[13px] leading-relaxed" style={{ color: "#d4b896" }}>
+                  {data.summary}
+                </p>
+
+                <div className="flex flex-col gap-2">
+                  {displayed.map((f, i) => (
+                    <div
+                      key={i}
+                      className="flex gap-3 items-start rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.06] cursor-pointer"
+                      style={{ background: "rgba(255,255,255,0.035)", border: "1px solid var(--border)" }}
+                      onClick={() => onSelectItem?.(f)}
+                    >
+                      <span
+                        className="shrink-0 inline-block text-[11px] font-mono font-bold px-2 py-0.5 rounded-md whitespace-nowrap mt-0.5"
+                        style={classBadgeStyle(f.class_type)}
+                      >
+                        {f.class_type ?? "?"}
+                      </span>
+                      <div className="flex flex-col gap-0.5 text-[12px] min-w-0">
+                        <span className="font-mono text-white/75">
+                          {formatTime(f.begin_time)}
+                          <span className="mx-1 opacity-40">→</span>
+                          {formatTime(f.peak_time)}
+                        </span>
+                        <div className="flex gap-3 flex-wrap">
+                          {f.source_location && (
+                            <span className="font-mono text-[11px]" style={{ color: "var(--muted)" }}>
+                              {f.source_location}
+                            </span>
+                          )}
+                          {f.active_region != null && (
+                            <span className="font-mono text-[11px]" style={{ color: "var(--muted)" }}>
+                              AR {f.active_region}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {overflow > 0 && (
+                  <p className="text-[11px] font-mono" style={{ color: "var(--muted)" }}>
+                    +{overflow} more events
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* ── Tab 2: Risk Model ── */}
+            {tab === "risk" && (
+              <RiskMatrix items={data.items} />
+            )}
+          </>
+        )}
 
       </div>{/* end scrollable body */}
     </div>
