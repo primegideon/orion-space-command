@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, KeyboardEvent } from "react";
+import toast from "react-hot-toast";
 import SentinelPanel, { SentinelData, AsteroidItem } from "@/components/SentinelPanel";
 import ForecasterPanel, { ForecasterData, FlareItem } from "@/components/ForecasterPanel";
 import ArchivistPanel, { ArchivistData } from "@/components/ArchivistPanel";
@@ -195,6 +196,9 @@ export default function Home() {
     try {
       const { exportBriefing } = await import("@/lib/exportPdf");
       await exportBriefing(result, consoleLogs);
+      toast.success("[OK] Mission Briefing exported successfully");
+    } catch {
+      toast.error("[WARN] Export failed — please try again");
     } finally {
       setExporting(false);
     }

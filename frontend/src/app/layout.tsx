@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -59,6 +60,26 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: "#0d1520",
+              border: "1px solid rgba(0,210,230,0.25)",
+              color: "#e2e8f0",
+              fontFamily: "monospace",
+              fontSize: "12px",
+              borderRadius: "10px",
+              padding: "10px 14px",
+            },
+            success: {
+              iconTheme: { primary: "#34d399", secondary: "#0d1520" },
+            },
+            error: {
+              iconTheme: { primary: "#f87171", secondary: "#0d1520" },
+            },
+          }}
+        />
       </body>
     </html>
   );

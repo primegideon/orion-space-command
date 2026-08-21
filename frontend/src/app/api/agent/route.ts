@@ -74,24 +74,24 @@ function stripFences(text: string): string {
 
 // Hard live-data signals — user clearly wants current data right now
 const SENTINEL_LIVE =
-  /\b(show me|approaching|this week|right now|today|closest|fastest|biggest|largest|smallest|coming close|miss distance|close approach|next 7 days|coming up|give me a.{0,20}briefing)\b/i;
+  /\b(show me|approaching|this week|right now|today|closest|fastest|biggest|largest|smallest|coming close|coming\b|miss distance|close approach|next 7 days|coming up|potentially hazardous|give me a.{0,20}briefing|are (there|any).{0,30}asteroid)\b/i;
 
 const FORECASTER_LIVE =
-  /\b(last 30 days|recently|current|any.{0,10}flares|show me.{0,20}solar|give me.{0,20}solar|elevated radiation|risk to satellites|how active has the sun)\b/i;
+  /\b(last 30 days|this month|recently|lately|current|any.{0,10}flares?|show me.{0,20}(solar|flare|donki)|give me.{0,20}solar|elevated radiation|risk to satellites|how active has the sun|solar events|what.{0,10}(solar|flare|space weather)|affect communications|radiation risk)\b/i;
 
 // Domain topic keywords (broad — used together with intent signals)
 const SENTINEL_TOPIC =
-  /\b(asteroid|asteroids|neo|neos|near.earth|close.approach|miss.distance|pho|planetary.defense|space.rock|flyby|impactor|meteor|meteorite|comet)\b/i;
+  /\b(asteroid|asteroids|neo|neos|near.?earth.{0,10}object|close.approach|miss.distance|pho|potentially.hazardous|planetary.defense|space.rock|flyby|impactor|meteor|meteorite|comet|orbital.data|space.rock)\b/i;
 
 const FORECASTER_TOPIC =
-  /\b(solar.?flare|flares?|space.weather|cme|coronal.mass|geomagnetic|donki|x.class|m.class|c.class|radiation.storm|sun.activit|solar.activit|solar.storm|aurora|kp.index|sep.event|magnetogram)\b/i;
+  /\b(solar.?flare|flares?|space.weather|cme|coronal.mass|geomagnetic|donki|x.class|m.class|c.class|b.class|radiation.storm|sun.activit|solar.activit|solar.storm|solar.event|solar.wind|aurora|kp.index|sep.event|magnetogram|the sun|sunspot|heliospheric|heliophys)\b/i;
 
 // Archivist signals — explicit research/academic framing OR "explain"/"what is"/"how does" WITHOUT live-data intent
 const ARCHIVIST_STRONG =
-  /\b(research|paper|papers|study|studies|literature|scientist|scientists|findings|published|methodology|theory|theories|arxiv|journal|peer.reviewed|academic|what does research|how do scientists|torino scale|hmi|cnn model|machine learning|survey completeness|debiased|readiness)\b/i;
+  /\b(research|paper|papers|study|studies|literature|scientist|scientists|findings|published|methodology|theory|theories|arxiv|journal|peer.reviewed|academic|what does research|how do scientists|torino scale|hmi|cnn model|machine learning|survey completeness|debiased|readiness|detection.method|deflection.strateg|kinetic.impactor|energetic.particle|jwst|magnetogram|forecast.{0,10}model)\b/i;
 
 const ARCHIVIST_EXPLAIN =
-  /^(explain|what is|what are|how does|how do|what role|describe|define|tell me about)\b/i;
+  /^(explain|what is|what are|how does|how do|what role|describe|define|tell me about|what exist|what mitigation|what.{0,10}strategies)\b/i;
 
 function keywordRoute(q: string): string | null {
   const hasSentinelLive    = SENTINEL_LIVE.test(q);
@@ -102,9 +102,12 @@ function keywordRoute(q: string): string | null {
   const hasArchivistExplain = ARCHIVIST_EXPLAIN.test(q);
 
   // ── Rule 1: Explicit live-data intent → always live agents ──────────────
-  // "show me asteroids this week", "any flares recently?" etc.
+  // Forecaster live alone is sufficient (e.g. "how active has the sun been lately?" — "lately"
+  // triggers FORECASTER_LIVE, no topic needed when the live phrase already implies solar)
   if (hasSentinelLive && hasSentinelTopic && !hasArchivistStrong) return "sentinel";
-  if (hasForecasterLive && hasForecasterTopic && !hasArchivistStrong) return "forecaster";
+  if (hasForecasterLive && (hasForecasterTopic || !hasSentinelTopic) && !hasArchivistStrong) return "forecaster";
+  // Sentinel live alone is sufficient when there's no competing forecaster topic
+  if (hasSentinelLive && !hasForecasterTopic && !hasArchivistStrong) return "sentinel";
 
   // ── Rule 2: Strong archivist signal → archivist wins over domain topic ──
   // "what does research say about asteroid deflection?" — has asteroid keyword but research wins
