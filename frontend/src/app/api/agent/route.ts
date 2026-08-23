@@ -137,6 +137,7 @@ export async function HEAD() {
 
 export async function POST(req: NextRequest) {
   const routeStart = Date.now();
+  let q = ""; // hoisted so the catch block can log the actual query string
 
   try {
     const body: unknown = await req.json();
@@ -148,7 +149,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const q = query.trim();
+    q = query.trim();
 
     // Step 1 — try fast keyword match first (no LLM call, no latency)
     let intent = keywordRoute(q);
@@ -224,7 +225,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const latency_ms = Date.now() - routeStart;
-    const q = "";   // query may not have been parsed yet
+    // q is hoisted above — contains the actual query string if parsing succeeded
 
     await insertLog({
       query_string:   q,
