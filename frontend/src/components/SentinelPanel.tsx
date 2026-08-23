@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 export interface AsteroidItem {
   name: string;
   nasa_id?: string;        // NASA SPK-ID — used to navigate the Eyes viewer
@@ -116,17 +114,6 @@ export default function SentinelPanel({ data, loading, active, dimmed, onSelectI
   const displayed = data?.items?.slice(0, 10) ?? [];
   const overflow  = (data?.items?.length ?? 0) - 10;
 
-  // Default target: first PHO, otherwise closest miss
-  const defaultTarget = data?.items?.length
-    ? (data.items.find(a => a.is_potentially_hazardous) ??
-       data.items.reduce((a, b) =>
-         (a.miss_distance_km ?? Infinity) <= (b.miss_distance_km ?? Infinity) ? a : b))
-    : null;
-
-  // Clicking a table row switches the iframe to that asteroid
-  const [viewTarget, setViewTarget] = useState<AsteroidItem | null>(null);
-  const activeTarget = viewTarget ?? defaultTarget;
-
   return (
     <div className={`glass flex flex-col p-5 transition-all duration-400 h-full min-h-[450px] overflow-hidden
       ${active ? "glass-active-cyan" : ""}
@@ -171,88 +158,6 @@ export default function SentinelPanel({ data, loading, active, dimmed, onSelectI
         {!loading && data && !data.error && (
           <div className="flex flex-col gap-3 animate-fade-in">
 
-            {/* ── NASA Eyes on the Solar System — live interactive embed ── */}
-            {activeTarget && (
-              <div className="relative w-full rounded-xl overflow-hidden flex-shrink-0"
-                style={{ height: 280, background: "#000", border: "1px solid var(--border)" }}>
-
-                {/* 3D interactive WebGL viewer — no X-Frame-Options on eyes.nasa.gov */}
-                <iframe
-                  key={eyesUrl(activeTarget)}
-                  src={eyesUrl(activeTarget)}
-                  title={`NASA Eyes on the Solar System · ${activeTarget.name}`}
-                  allow="fullscreen"
-                  style={{
-                    width: "100%", height: "100%",
-                    border: "none", display: "block",
-                    background: "#000",
-                  }}
-                />
-
-                {/* HUD overlay */}
-                <div
-                  className="absolute inset-x-0 bottom-0 px-3 py-2 flex items-end justify-between pointer-events-none"
-                  style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.80))" }}
-                >
-                  {/* Target label */}
-                  <div className="flex flex-col">
-                    <span className="font-mono text-[8px] tracking-widest uppercase"
-                      style={{ color: "rgba(255,255,255,0.4)" }}>
-                      NASA EYES · SOLAR SYSTEM · LIVE
-                    </span>
-                    <span className="font-mono text-[12px] font-bold" style={{ color: "var(--cyan)" }}>
-                      {activeTarget.name}
-                    </span>
-                    {activeTarget.is_potentially_hazardous && (
-                      <span className="font-mono text-[8px] font-bold animate-pulse" style={{ color: "var(--red)" }}>
-                        ⬡ POTENTIALLY HAZARDOUS OBJECT
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Action buttons — re-enable pointer events */}
-                  <div className="flex gap-1.5 pointer-events-auto">
-                    <a
-                      href={eyesUrl(activeTarget)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Open in NASA Eyes full screen"
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg font-mono text-[8px] font-bold tracking-widest uppercase"
-                      style={{
-                        background: "rgba(0,210,230,0.18)",
-                        border: "1px solid rgba(0,210,230,0.4)",
-                        color: "var(--cyan)",
-                        textDecoration: "none",
-                      }}
-                    >
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                        <polyline points="15 3 21 3 21 9"/>
-                        <line x1="10" y1="14" x2="21" y2="3"/>
-                      </svg>
-                      Full Screen
-                    </a>
-                    <a
-                      href={jplOrbitUrl(activeTarget)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Open orbit data in NASA JPL SBDB"
-                      className="flex items-center px-2 py-1 rounded-lg font-mono text-[8px] font-bold tracking-widest uppercase"
-                      style={{
-                        background: "rgba(255,255,255,0.07)",
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        color: "rgba(255,255,255,0.6)",
-                        textDecoration: "none",
-                      }}
-                    >
-                      JPL Data
-                    </a>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Summary */}
             <p className="text-[13px] leading-relaxed" style={{ color: "#a0c4d8" }}>{data.summary}</p>
 
@@ -261,7 +166,7 @@ export default function SentinelPanel({ data, loading, active, dimmed, onSelectI
               <table className="w-full text-[12px] border-collapse">
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["Name","Date","Miss Dist.","Ø km","km/h","Hazard"].map((h) => (
+                    {["Name","Date","Miss Dist.","Ø km","km/h","Hazard",""].map((h) => (
                       <th key={h} className="text-left py-1.5 pr-3 font-mono font-normal whitespace-nowrap"
                         style={{ color: "var(--muted)" }}>
                         {h}
@@ -270,58 +175,61 @@ export default function SentinelPanel({ data, loading, active, dimmed, onSelectI
                   </tr>
                 </thead>
                 <tbody>
-                  {displayed.map((a, i) => {
-                    const isViewing = activeTarget?.name === a.name;
-                    return (
-                      <tr
-                        key={i}
-                        className="transition-colors cursor-pointer"
-                        style={{
-                          borderBottom: "1px solid var(--border)",
-                          background: isViewing ? "rgba(0,210,230,0.07)" : undefined,
-                        }}
-                        onClick={() => {
-                          setViewTarget(a);
-                          onSelectItem?.(a);
-                        }}
-                      >
-                        <td className="py-2 pr-3 font-mono whitespace-nowrap"
-                          style={{ color: isViewing ? "var(--cyan)" : "rgba(255,255,255,0.8)" }}>
-                          {isViewing && <span className="mr-1 text-[8px]">▶</span>}
-                          {a.name}
-                        </td>
-                        <td className="py-2 pr-3 font-mono whitespace-nowrap" style={{ color: "var(--muted)" }}>
-                          {a.close_approach_date}
-                        </td>
-                        <td className="py-2 pr-3 font-mono whitespace-nowrap" style={{ color: "var(--cyan)" }}>
-                          {fmt(a.miss_distance_km)}<span className="opacity-50 ml-0.5 text-[10px]">km</span>
-                        </td>
-                        <td className="py-2 pr-3 font-mono whitespace-nowrap text-white/70">
-                          {fmt(a.estimated_diameter_km_max, 3)}
-                        </td>
-                        <td className="py-2 pr-3 font-mono whitespace-nowrap text-white/70">
-                          {fmt(a.relative_velocity_kmh)}
-                        </td>
-                        <td className="py-2">
-                          {a.is_potentially_hazardous ? (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold"
-                              style={{ background: "var(--red-dim)", color: "var(--red)" }}>PHO</span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono"
-                              style={{ background: "var(--emerald-dim)", color: "var(--emerald)" }}>safe</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {displayed.map((a, i) => (
+                    <tr
+                      key={i}
+                      className="transition-colors cursor-pointer hover:bg-white/5"
+                      style={{ borderBottom: "1px solid var(--border)" }}
+                      onClick={() => onSelectItem?.(a)}
+                    >
+                      <td className="py-2 pr-3 font-mono whitespace-nowrap"
+                        style={{ color: "rgba(255,255,255,0.8)" }}>
+                        {a.name}
+                      </td>
+                      <td className="py-2 pr-3 font-mono whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                        {a.close_approach_date}
+                      </td>
+                      <td className="py-2 pr-3 font-mono whitespace-nowrap" style={{ color: "var(--cyan)" }}>
+                        {fmt(a.miss_distance_km)}<span className="opacity-50 ml-0.5 text-[10px]">km</span>
+                      </td>
+                      <td className="py-2 pr-3 font-mono whitespace-nowrap text-white/70">
+                        {fmt(a.estimated_diameter_km_max, 3)}
+                      </td>
+                      <td className="py-2 pr-3 font-mono whitespace-nowrap text-white/70">
+                        {fmt(a.relative_velocity_kmh)}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {a.is_potentially_hazardous ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold"
+                            style={{ background: "var(--red-dim)", color: "var(--red)" }}>PHO</span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono"
+                            style={{ background: "var(--emerald-dim)", color: "var(--emerald)" }}>safe</span>
+                        )}
+                      </td>
+                      <td className="py-2">
+                        <a
+                          href={jplOrbitUrl(a)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Open orbit data in NASA JPL SBDB"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center px-2 py-0.5 rounded font-mono text-[8px] font-bold tracking-widest uppercase whitespace-nowrap"
+                          style={{
+                            background: "rgba(255,255,255,0.06)",
+                            border: "1px solid rgba(255,255,255,0.15)",
+                            color: "rgba(255,255,255,0.55)",
+                            textDecoration: "none",
+                          }}
+                        >
+                          JPL DATA
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
-
-            {/* Interaction hint */}
-            <p className="text-[9px] font-mono" style={{ color: "var(--muted)" }}>
-              ▶ Click any row to load that orbit · Drag to rotate · Scroll to zoom · Source: NASA JPL Eyes
-            </p>
 
             {overflow > 0 && (
               <p className="text-[11px] font-mono" style={{ color: "var(--muted)" }}>
