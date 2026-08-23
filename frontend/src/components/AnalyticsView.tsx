@@ -195,13 +195,16 @@ export default function AnalyticsView({
 
   const [analytics, setAnalytics]     = useState<AnalyticsResponse | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [isBusting,  setIsBusting]   = useState(false);
   const [fetchError,  setFetchError]  = useState<string | null>(null);
   const [syncedAt,    setSyncedAt]    = useState("");
 
-  const load = useCallback(async () => {
+  /** Normal load — serves from server TTL cache if fresh (≤15 min) */
+  const load = useCallback(async (bust = false) => {
     setLoadingData(true);
     try {
-      const res = await fetch("/api/analytics", { cache: "no-store" });
+      const url = bust ? "/api/analytics?bust=1" : "/api/analytics";
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as AnalyticsResponse;
       setAnalytics(json);
@@ -215,14 +218,22 @@ export default function AnalyticsView({
       setFetchError(e instanceof Error ? e.message : "Analytics fetch failed");
     } finally {
       setLoadingData(false);
+      setIsBusting(false);
     }
   }, []);
 
-  // Load when the historical tab is first shown, then every 30 min
+  /** Manual refresh — bypasses the 15-min TTL cache */
+  const handleRefresh = useCallback(() => {
+    if (loadingData) return;
+    setIsBusting(true);
+    load(true);
+  }, [load, loadingData]);
+
+  // Load when the historical tab is first shown, then every 15 min (matches TTL)
   useEffect(() => {
     if (tab !== "historical") return;
-    load();
-    const id = setInterval(load, 30 * 60 * 1000);
+    load(false);
+    const id = setInterval(() => load(false), 15 * 60 * 1000);
     return () => clearInterval(id);
   }, [tab, load]);
 
@@ -309,12 +320,12 @@ export default function AnalyticsView({
               )}
               <button
                 type="button"
-                onClick={load}
+                onClick={handleRefresh}
                 disabled={loadingData}
                 className="font-mono text-[8px] px-2.5 py-1 rounded-full transition-all duration-200 whitespace-nowrap disabled:opacity-40"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--muted)" }}
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: isBusting ? "var(--cyan)" : "var(--muted)" }}
               >
-                ↻ Refresh
+                {isBusting ? "⟳ Syncing…" : "↻ Refresh"}
               </button>
             </div>
           </div>

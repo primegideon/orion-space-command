@@ -1,19 +1,24 @@
 /**
  * GET /api/analytics — 30-day threat & risk aggregates
  *
- * Fans out three NASA API calls in parallel:
- *   1. NASA DONKI /FLR  — 30-day solar flares (class, time)
- *   2. NASA DONKI /CME  — 30-day CME events   (speed, time)
- *   3. NASA NeoWs /feed — 30-day NEO close approaches
- *   4. NOAA SWPC Kp     — current geomagnetic index (re-uses our /api/kp logic)
+ * Server-side TTL cache (15 min) prevents hammering NASA APIs on every render.
+ * Pass ?bust=1 to skip the cache and force a fresh network request.
  *
- * Aggregates are returned as typed JSON ready for direct chart consumption.
- * Cache: 30 min (NASA data updates infrequently; Kp already has its own 3-min cache).
+ * Sources:
+ *   1. NASA DONKI /FLR          — 30-day solar flares
+ *   2. NASA DONKI /CMEAnalysis  — 30-day CME speeds
+ *   3. NASA NeoWs /feed         — 30-day NEO close approaches
+ *   4. NOAA SWPC Kp             — current geomagnetic index
  */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/* ── In-process TTL cache (survives across requests in the same serverless instance) ── */
+const TTL_MS = 15 * 60 * 1000; // 15 minutes
+let cachedPayload: AnalyticsResponse | null = null;
+let cacheTimestamp = 0;
 
 /* ── date helpers ──────────────────────────────────────────────────────────*/
 function iso(d: Date) { return d.toISOString().slice(0, 10); }
@@ -119,16 +124,26 @@ function classifyKp(kp: number): AnalyticsMetrics["kpStatus"] {
 }
 
 /* ── main handler ──────────────────────────────────────────────────────────*/
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const bust = req.nextUrl.searchParams.get("bust") === "1";
+
+  // Serve from cache if still fresh and not a forced refresh
+  if (!bust && cachedPayload && Date.now() - cacheTimestamp < TTL_MS) {
+    return NextResponse.json({ ...cachedPayload, cache: "hit" });
+  }
+
   try {
-  return await runAnalytics();
+    const payload = await runAnalytics();
+    cachedPayload  = payload;
+    cacheTimestamp = Date.now();
+    return NextResponse.json({ ...payload, cache: "miss" });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg, errors: [msg], metrics: null, flareChart: [], cmeChart: [], windowDays: 30 }, { status: 500 });
   }
 }
 
-async function runAnalytics() {
+async function runAnalytics(): Promise<AnalyticsResponse & { cache?: string }> {
   const WINDOW = 30;
   const endDate   = new Date();
   const startDate = daysAgo(WINDOW);
@@ -332,5 +347,5 @@ async function runAnalytics() {
     errors,
   };
 
-  return NextResponse.json(payload);
+  return payload;
 }
