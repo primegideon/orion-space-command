@@ -136,7 +136,8 @@ export async function GET() {
     return NextResponse.json(payload);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // Return a safe fallback so the UI stays functional if DONKI is unreachable
+    // Return a safe fallback — but mark it no-store so Vercel edge never
+    // caches a DONKI error and serves stale R0 to future requests
     const fallback: DonkiResponse = {
       worstClass:    null,
       rScale:        "R0",
@@ -146,6 +147,9 @@ export async function GET() {
       source:        "noaa-donki",
       fetched_at:    new Date().toISOString(),
     };
-    return NextResponse.json({ ...fallback, error: msg });
+    return NextResponse.json(
+      { ...fallback, error: msg },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }
 }
