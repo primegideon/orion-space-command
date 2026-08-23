@@ -197,12 +197,15 @@ export async function POST(req: NextRequest) {
     const subData = await subRes.json() as Record<string, unknown>;
     const latency_ms = Date.now() - routeStart;
 
-    // Step 4 — persist log row to Supabase (fire-and-forget, never blocks response)
+    // Step 4 — persist log row to Supabase.
+    // Must be awaited before returning — on serverless (Vercel) the runtime
+    // freezes immediately after the response is sent, so fire-and-forget
+    // (void) inserts never complete.
     const tokenUsage =
       typeof subData.token_usage === "number" ? subData.token_usage :
       typeof subData.tokens       === "number" ? subData.tokens       : 0;
 
-    void insertLog({
+    await insertLog({
       query_string:   q,
       resolved_agent: intent as "sentinel" | "forecaster" | "archivist",
       latency_ms,
@@ -218,8 +221,7 @@ export async function POST(req: NextRequest) {
     const latency_ms = Date.now() - routeStart;
     const q = "";   // query may not have been parsed yet
 
-    // Best-effort error log
-    void insertLog({
+    await insertLog({
       query_string:   q,
       resolved_agent: "error",
       latency_ms,

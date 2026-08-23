@@ -55,6 +55,12 @@ export interface InsertLogParams {
  */
 export async function insertLog(params: InsertLogParams): Promise<void> {
   try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+      console.error("[system_logs] insert skipped — SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL not set");
+      return;
+    }
     const sb = getSupabaseAdmin();
     const { error } = await sb.from("system_logs").insert({
       query_string:   params.query_string,
