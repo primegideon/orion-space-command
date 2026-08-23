@@ -58,31 +58,41 @@ export async function GET(req: NextRequest) {
     const { createClient } = await import("@supabase/supabase-js");
     const sb = createClient(url, key, { auth: { persistSession: false } });
 
-    // Build filtered query for rows (paginated)
+    // Row query — filtered by agent if requested, paginated
     let rowQuery = sb
       .from("system_logs")
       .select("*")
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // Build count query across the full table (ignores pagination)
-    let countQuery = sb
-      .from("system_logs")
-      .select("*", { count: "exact", head: true });
-
     if (agent && ["sentinel", "forecaster", "archivist", "error"].includes(agent)) {
-      rowQuery   = rowQuery.eq("resolved_agent", agent);
-      countQuery = countQuery.eq("resolved_agent", agent);
+      rowQuery = rowQuery.eq("resolved_agent", agent);
     }
 
-    const [{ data, error }, { count: totalCount, error: countError }] =
-      await Promise.all([rowQuery, countQuery]);
+    // Stat count queries — always unfiltered so cards reflect the full table,
+    // not just the current agent filter / pagination window
+    const totalCountQuery = sb
+      .from("system_logs")
+      .select("*", { count: "exact", head: true });
+    const errorCountQuery = sb
+      .from("system_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "ERROR");
+    const warnCountQuery = sb
+      .from("system_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "WARN");
 
-    // countError is non-fatal — we fall back to rows.length
+    const [
+      { data, error },
+      { count: totalCount, error: countError },
+      { count: errorCount },
+      { count: warnCount  },
+    ] = await Promise.all([rowQuery, totalCountQuery, errorCountQuery, warnCountQuery]);
+
     if (countError) console.warn("[/api/logs] count query error:", countError.message);
 
     if (error) {
-      // Table doesn't exist yet (PGRST200/PGRST204/42P01) → return empty, not 502
       const isTableMissing =
         error.code === "PGRST200" ||
         error.code === "PGRST205" ||
@@ -93,21 +103,19 @@ export async function GET(req: NextRequest) {
       if (isTableMissing) {
         return NextResponse.json(makeEmpty());
       }
-      // Log the actual error so we can see it server-side
       console.error("[/api/logs] Supabase error:", error.code, error.message);
       throw new Error(`Supabase query error: ${error.message}`);
     }
 
     const rows = (data ?? []) as SystemLogRow[];
 
-    // total_queries = exact full-table count (or row window length as fallback)
     const total_queries  = totalCount ?? rows.length;
+    const error_count    = errorCount ?? rows.filter(r => r.status === "ERROR").length;
+    const warn_count     = warnCount  ?? rows.filter(r => r.status === "WARN").length;
     const avg_latency_ms = rows.length > 0
       ? Math.round(rows.reduce((s, r) => s + r.latency_ms, 0) / rows.length)
       : 0;
-    const total_tokens  = rows.reduce((s, r) => s + r.token_usage, 0);
-    const error_count   = rows.filter(r => r.status === "ERROR").length;
-    const warn_count    = rows.filter(r => r.status === "WARN").length;
+    const total_tokens   = rows.reduce((s, r) => s + r.token_usage, 0);
 
     const payload: LogsResponse = {
       rows,
