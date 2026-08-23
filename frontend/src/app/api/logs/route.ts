@@ -58,10 +58,12 @@ export async function GET(req: NextRequest) {
     const { createClient } = await import("@supabase/supabase-js");
     const sb = createClient(url, key, { auth: { persistSession: false } });
 
-    // Row query — filtered by agent if requested, paginated
+    // Single query — fetch all rows with exact count in one round-trip.
+    // Using count:"exact" on the data query avoids separate count queries
+    // hitting different pooled connections and seeing stale results.
     let rowQuery = sb
       .from("system_logs")
-      .select("*")
+      .select("*", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -69,28 +71,7 @@ export async function GET(req: NextRequest) {
       rowQuery = rowQuery.eq("resolved_agent", agent);
     }
 
-    // Stat count queries — always unfiltered so cards reflect the full table,
-    // not just the current agent filter / pagination window
-    const totalCountQuery = sb
-      .from("system_logs")
-      .select("*", { count: "exact", head: true });
-    const errorCountQuery = sb
-      .from("system_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "ERROR");
-    const warnCountQuery = sb
-      .from("system_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "WARN");
-
-    const [
-      { data, error },
-      { count: totalCount, error: countError },
-      { count: errorCount },
-      { count: warnCount  },
-    ] = await Promise.all([rowQuery, totalCountQuery, errorCountQuery, warnCountQuery]);
-
-    if (countError) console.warn("[/api/logs] count query error:", countError.message);
+    const { data, error, count: totalCount } = await rowQuery;
 
     if (error) {
       const isTableMissing =
@@ -109,9 +90,10 @@ export async function GET(req: NextRequest) {
 
     const rows = (data ?? []) as SystemLogRow[];
 
+    // total_queries from the same query's count — always consistent with rows
     const total_queries  = totalCount ?? rows.length;
-    const error_count    = errorCount ?? rows.filter(r => r.status === "ERROR").length;
-    const warn_count     = warnCount  ?? rows.filter(r => r.status === "WARN").length;
+    const error_count    = rows.filter(r => r.status === "ERROR").length;
+    const warn_count     = rows.filter(r => r.status === "WARN").length;
     const avg_latency_ms = rows.length > 0
       ? Math.round(rows.reduce((s, r) => s + r.latency_ms, 0) / rows.length)
       : 0;
