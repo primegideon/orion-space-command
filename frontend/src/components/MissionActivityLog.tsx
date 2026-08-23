@@ -7,6 +7,8 @@ import type { SystemLogRow } from "@/lib/supabase";
 
 interface Props {
   logs: TelemetryLog[];
+  /** Called by page.tsx after a transmit completes so the table re-fetches */
+  refreshRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 /* ── Display helpers ──────────────────────────────────────────────────────*/
@@ -116,7 +118,7 @@ function EmptyState() {
 }
 
 /* ── Main component ───────────────────────────────────────────────────────*/
-export default function MissionActivityLog({ logs }: Props) {
+export default function MissionActivityLog({ logs, refreshRef }: Props) {
   const [data,        setData]        = useState<LogsResponse | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState<string | null>(null);
@@ -156,6 +158,11 @@ export default function MissionActivityLog({ logs }: Props) {
     }
   }, []); // stable — no deps needed
 
+  // Expose fetchLogs to parent via refreshRef so transmit can trigger a re-fetch
+  useEffect(() => {
+    if (refreshRef) refreshRef.current = fetchLogs;
+  }, [fetchLogs, refreshRef]);
+
   // Re-fetch whenever the filter changes
   useEffect(() => { fetchLogs(); }, [agentFilter, fetchLogs]);
 
@@ -179,6 +186,11 @@ export default function MissionActivityLog({ logs }: Props) {
     { id: "error",      label: "Errors only" },
   ];
 
+  // Success rate: (total - errors - warnings) / total * 100
+  const successRate = stats.total_queries > 0
+    ? (((stats.total_queries - stats.error_count - stats.warn_count) / stats.total_queries) * 100).toFixed(1)
+    : "—";
+
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
 
@@ -189,7 +201,7 @@ export default function MissionActivityLog({ logs }: Props) {
             Mission Activity Log
           </p>
           <p className="text-[10px] font-mono mt-0.5" style={{ color: "var(--muted)" }}>
-            Live Supabase system_logs · agent routing history · latency · token usage
+            Live Supabase system_logs · agent routing history · latency
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -212,12 +224,11 @@ export default function MissionActivityLog({ logs }: Props) {
       </div>
 
       {/* ── Stats row — computed from real DB rows ───────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-        <StatCard label="Total Queries" value={stats.total_queries}                                        color="var(--cyan)"    />
-        <StatCard label="Avg Latency"   value={fmtLatency(stats.avg_latency_ms)}                           color="var(--amber)"   />
-        <StatCard label="Total Tokens"  value={stats.total_tokens.toLocaleString()}                        color="var(--emerald)" />
-        <StatCard label="Errors"        value={stats.error_count}                                          color="var(--red)"     />
-        <StatCard label="Warnings"      value={stats.warn_count}                                           color="#fb923c"        />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        <StatCard label="Total Queries"        value={stats.total_queries}              color="var(--cyan)"    />
+        <StatCard label="Avg Latency"          value={fmtLatency(stats.avg_latency_ms)} color="var(--amber)"   />
+        <StatCard label="Routing Success Rate" value={successRate === "—" ? "—" : `${successRate}%`} color="var(--emerald)" />
+        <StatCard label="Errors"               value={stats.error_count}                color="var(--red)"     />
       </div>
 
       {/* ── Agent filter dropdown ─────────────────────────────────────────── */}
@@ -313,63 +324,63 @@ ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;`}</pre>
         <div className="glass rounded-xl overflow-hidden"><EmptyState /></div>
       ) : (
         <div className="glass rounded-xl overflow-hidden">
-          {/* Column headers */}
-          <div className="grid font-mono text-[9px] tracking-widest uppercase px-4 py-2"
+          {/* Sticky column headers */}
+          <div className="grid font-mono text-[9px] tracking-widest uppercase px-4 py-2 sticky top-0 z-10"
             style={{
-              gridTemplateColumns: "140px 1fr 80px 80px 70px 60px",
+              gridTemplateColumns: "140px 1fr 80px 80px 60px",
               color: "var(--muted)",
+              background: "#0d1821",
               borderBottom: "1px solid rgba(255,255,255,0.06)",
             }}>
             <span>Timestamp</span>
             <span>Query / Route</span>
             <span>Agent</span>
             <span>Latency</span>
-            <span>Tokens</span>
             <span>Status</span>
           </div>
 
-          {rows.map((row, i) => (
-            <div
-              key={row.id}
-              className="grid items-start px-4 py-2.5 font-mono text-[10px]"
-              style={{
-                gridTemplateColumns: "140px 1fr 80px 80px 70px 60px",
-                background:   i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
-                borderBottom: i < rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                borderLeft:   row.status === "ERROR" ? "2px solid var(--red)"
-                            : row.status === "WARN"  ? "2px solid var(--amber)"
-                            : "2px solid transparent",
-              }}
-            >
-              <span className="tabular-nums" style={{ color: "var(--muted)" }}>
-                {fmtTs(row.created_at)}
-              </span>
-              <div className="flex flex-col pr-4 min-w-0">
-                <span className="truncate" style={{ color: "rgba(255,255,255,0.8)" }}>
-                  {row.query_string || <em style={{ opacity: 0.4 }}>empty query</em>}
+          {/* Scrollable rows — max 600px */}
+          <div className="overflow-y-auto" style={{ maxHeight: 600 }}>
+            {rows.map((row, i) => (
+              <div
+                key={row.id}
+                className="grid items-start px-4 py-2.5 font-mono text-[10px]"
+                style={{
+                  gridTemplateColumns: "140px 1fr 80px 80px 60px",
+                  background:   i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
+                  borderBottom: i < rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                  borderLeft:   row.status === "ERROR" ? "2px solid var(--red)"
+                              : row.status === "WARN"  ? "2px solid var(--amber)"
+                              : "2px solid transparent",
+                }}
+              >
+                <span className="tabular-nums" style={{ color: "var(--muted)" }}>
+                  {fmtTs(row.created_at)}
                 </span>
-                <span className="text-[9px] truncate mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
-                  {agentRoute(row.resolved_agent)}
-                  {row.error_message && (
-                    <span style={{ color: "var(--red)" }}> · {row.error_message}</span>
-                  )}
+                <div className="flex flex-col pr-4 min-w-0">
+                  <span className="truncate" style={{ color: "rgba(255,255,255,0.8)" }}>
+                    {row.query_string || <em style={{ opacity: 0.4 }}>empty query</em>}
+                  </span>
+                  <span className="text-[9px] truncate mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    {agentRoute(row.resolved_agent)}
+                    {row.error_message && (
+                      <span style={{ color: "var(--red)" }}> · {row.error_message}</span>
+                    )}
+                  </span>
+                </div>
+                <span className="font-bold uppercase text-[9px]"
+                  style={{ color: INTENT_COLOR[row.resolved_agent] ?? "var(--muted)" }}>
+                  {row.resolved_agent}
+                </span>
+                <span className="tabular-nums" style={{ color: latencyColor(row.latency_ms) }}>
+                  {fmtLatency(row.latency_ms)}
+                </span>
+                <span className="font-bold text-[9px]" style={{ color: STATUS_COLOR[row.status] }}>
+                  {row.status}
                 </span>
               </div>
-              <span className="font-bold uppercase text-[9px]"
-                style={{ color: INTENT_COLOR[row.resolved_agent] ?? "var(--muted)" }}>
-                {row.resolved_agent}
-              </span>
-              <span className="tabular-nums" style={{ color: latencyColor(row.latency_ms) }}>
-                {fmtLatency(row.latency_ms)}
-              </span>
-              <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.5)" }}>
-                {row.token_usage > 0 ? row.token_usage.toLocaleString() : "—"}
-              </span>
-              <span className="font-bold text-[9px]" style={{ color: STATUS_COLOR[row.status] }}>
-                {row.status}
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
@@ -400,7 +411,7 @@ ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;`}</pre>
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <p className="text-[9px] font-mono" style={{ color: "var(--muted)" }}>
         Source: Supabase system_logs · Every query through the watsonx router writes a real row ·
-        Polling every 30 s · Stats computed from the current result window
+        Polling every 30 s · Success rate = (total − errors − warnings) / total
       </p>
     </div>
   );

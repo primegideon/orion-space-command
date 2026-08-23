@@ -317,7 +317,8 @@ export default function Home() {
   // Voice command
   const [listening, setListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const recognitionRef   = useRef<SpeechRecognitionInstance | null>(null);
+  const logRefreshRef    = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     setVoiceSupported(
@@ -413,6 +414,8 @@ export default function Home() {
       }
     } finally {
       setLoading(false);
+      // Give Supabase ~1 s to commit the row written by the agent route, then refresh
+      setTimeout(() => { logRefreshRef.current?.(); }, 1200);
     }
   }
 
@@ -690,7 +693,7 @@ export default function Home() {
           {view === "fleet" && <ConstellationFleet />}
 
           {/* ── Mission Activity Log ────────────────────────────────────── */}
-          {view === "log" && <MissionActivityLog logs={consoleLogs} />}
+          {view === "log" && <MissionActivityLog logs={consoleLogs} refreshRef={logRefreshRef} />}
 
           {/* ── Ground Relay Grid ───────────────────────────────────────── */}
           {view === "ground" && <GroundRelayGrid />}
