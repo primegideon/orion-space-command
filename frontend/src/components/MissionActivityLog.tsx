@@ -38,8 +38,13 @@ function fmtLatency(ms: number): string {
 
 function fmtTs(iso: string): string {
   // "2025-07-14T09:41:22.123Z" → "07-14 09:41:22Z"
+  // Supabase may omit the Z suffix — ensure the string is parsed as UTC
   try {
-    const d = new Date(iso);
+    // If there's no timezone indicator, append Z so Date treats it as UTC
+    const normalized = /[Zz]$|[+-]\d{2}:?\d{2}$/.test(iso.trim())
+      ? iso
+      : iso.replace(" ", "T") + "Z";
+    const d = new Date(normalized);
     const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
     const dy = String(d.getUTCDate()).padStart(2, "0");
     const hh = String(d.getUTCHours()).padStart(2, "0");
