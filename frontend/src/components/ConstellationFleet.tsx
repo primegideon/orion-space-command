@@ -1,46 +1,16 @@
 "use client";
 
-/* ── Simulated constellation fleet ────────────────────────────────────────
- * Deterministic mock data — no external fetch required.
- * ──────────────────────────────────────────────────────────────────────── */
+import { useEffect, useState } from "react";
+import type { SatellitesResponse, SatelliteRecord } from "@/app/api/satellites/route";
 
-type Band   = "LEO" | "MEO" | "GEO" | "HEO";
-type Health = "NOMINAL" | "DEGRADED" | "CRITICAL" | "OFFLINE";
-
-interface Satellite {
-  id: string;
-  name: string;
-  band: Band;
-  altitude: number;   // km
-  inclination: number;// deg
-  battery: number;    // %
-  solar: number;      // W
-  signal: number;     // dBm  (negative)
-  uptime: string;
-  health: Health;
-}
-
-const FLEET: Satellite[] = [
-  { id: "OC-1",  name: "ORION-CORE-1",  band: "LEO", altitude: 420,   inclination: 51.6, battery: 94, solar: 312, signal: -82,  uptime: "182d 14h", health: "NOMINAL"  },
-  { id: "OC-2",  name: "ORION-CORE-2",  band: "LEO", altitude: 420,   inclination: 51.6, battery: 88, solar: 298, signal: -85,  uptime: "182d 12h", health: "NOMINAL"  },
-  { id: "OC-3",  name: "ORION-CORE-3",  band: "LEO", altitude: 550,   inclination: 53.0, battery: 71, solar: 241, signal: -91,  uptime: "97d 03h",  health: "DEGRADED" },
-  { id: "RS-9",  name: "RELAY-STAR-9",  band: "MEO", altitude: 20200,  inclination: 55.0, battery: 99, solar: 580, signal: -78,  uptime: "410d 07h", health: "NOMINAL"  },
-  { id: "RS-11", name: "RELAY-STAR-11", band: "MEO", altitude: 20200,  inclination: 55.0, battery: 97, solar: 570, signal: -80,  uptime: "310d 21h", health: "NOMINAL"  },
-  { id: "GS-4",  name: "GEO-SYNC-4",   band: "GEO", altitude: 35786,  inclination: 0.1,  battery: 100,solar: 890, signal: -70,  uptime: "1203d 09h",health: "NOMINAL"  },
-  { id: "GS-7",  name: "GEO-SYNC-7",   band: "GEO", altitude: 35786,  inclination: 0.1,  battery: 43, solar: 104, signal: -103, uptime: "621d 15h", health: "CRITICAL" },
-  { id: "HO-2",  name: "HALO-ORB-2",   band: "HEO", altitude: 50000,  inclination: 63.4, battery: 82, solar: 195, signal: -94,  uptime: "55d 02h",  health: "NOMINAL"  },
-  { id: "SC-1",  name: "SCOUT-1",      band: "LEO", altitude: 340,   inclination: 97.4, battery: 12, solar: 18,  signal: -118, uptime: "3d 11h",   health: "OFFLINE"  },
-  { id: "SC-2",  name: "SCOUT-2",      band: "LEO", altitude: 340,   inclination: 97.4, battery: 78, solar: 210, signal: -88,  uptime: "3d 10h",   health: "NOMINAL"  },
-];
-
-const HEALTH_COLOR: Record<Health, string> = {
+const HEALTH_COLOR: Record<SatelliteRecord["health"], string> = {
   NOMINAL:  "var(--emerald)",
   DEGRADED: "var(--amber)",
   CRITICAL: "#fb923c",
   OFFLINE:  "var(--red)",
 };
 
-const BAND_COLOR: Record<Band, string> = {
+const BAND_COLOR: Record<SatelliteRecord["band"], string> = {
   LEO: "var(--cyan)",
   MEO: "var(--emerald)",
   GEO: "var(--amber)",
@@ -52,119 +22,178 @@ function BarCell({ value, max, color }: { value: number; max: number; color: str
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 rounded-full overflow-hidden" style={{ height: 4, background: "rgba(255,255,255,0.06)" }}>
-        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
       </div>
-      <span className="text-[10px] font-mono tabular-nums" style={{ color, minWidth: 30, textAlign: "right" }}>
-        {value}%
+      <span className="text-[10px] font-mono tabular-nums shrink-0" style={{ color, minWidth: 36, textAlign: "right" }}>
+        {value.toFixed(0)} km
       </span>
     </div>
   );
 }
 
+function SkeletonRow() {
+  return (
+    <div className="grid items-center px-4 py-2.5"
+      style={{ gridTemplateColumns: "1fr 60px 100px 80px 80px 80px", gap: 0 }}>
+      {[140, 40, 80, 60, 70, 60].map((w, i) => (
+        <div key={i} className="animate-pulse rounded" style={{ height: 8, width: w, background: "rgba(255,255,255,0.06)", margin: "0 4px" }} />
+      ))}
+    </div>
+  );
+}
+
 export default function ConstellationFleet() {
+  const [data, setData]       = useState<SatellitesResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+  const [fetchedAt, setFetchedAt] = useState<string>("");
+
+  useEffect(() => {
+    let alive = true;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/satellites");
+        if (!res.ok) throw new Error(`API error ${res.status}`);
+        const json = (await res.json()) as SatellitesResponse;
+        if (!alive) return;
+        if (json.satellites?.length) {
+          setData(json);
+          setFetchedAt(new Date().toLocaleTimeString("en-US", { hour12: false, timeZone: "UTC" }) + " UTC");
+        } else {
+          setError("No satellite data returned from CelesTrak.");
+        }
+      } catch (e) {
+        if (alive) setError(e instanceof Error ? e.message : "Fetch failed");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+
+    load();
+    // Refresh every 60 min — TLEs don't change faster
+    const id = setInterval(load, 60 * 60 * 1000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  const sats = data?.satellites ?? [];
+
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
 
       {/* Header row */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <p className="text-[11px] font-mono font-bold tracking-widest uppercase" style={{ color: "var(--cyan)" }}>
             Constellation Fleet
           </p>
           <p className="text-[10px] font-mono mt-0.5" style={{ color: "var(--muted)" }}>
-            {FLEET.length} satellites · LEO / MEO / GEO / HEO orbital bands
+            {loading ? "Fetching live TLEs from CelesTrak…" :
+             error    ? `Source: CelesTrak · ${error}` :
+             `${sats.length} satellites · Live TLE data · Refreshed ${fetchedAt}`}
           </p>
         </div>
-        <div className="flex gap-2">
-          {(["LEO","MEO","GEO","HEO"] as Band[]).map((b) => (
+        <div className="flex gap-2 flex-wrap">
+          {(["LEO","MEO","GEO","HEO"] as SatelliteRecord["band"][]).map((b) => (
             <span key={b} className="text-[9px] font-mono px-2 py-0.5 rounded-full"
               style={{ background: `${BAND_COLOR[b]}18`, border: `1px solid ${BAND_COLOR[b]}44`, color: BAND_COLOR[b] }}>
               {b}
             </span>
           ))}
+          <span className="text-[9px] font-mono px-2 py-0.5 rounded-full"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--muted)" }}>
+            SOURCE: CELESTRAK
+          </span>
         </div>
       </div>
 
+      {/* Error state */}
+      {error && !loading && (
+        <div className="glass rounded-xl px-4 py-3 text-[11px] font-mono"
+          style={{ color: "var(--amber)", borderColor: "rgba(251,191,36,0.3)" }}>
+          ⚠ CelesTrak unavailable — {error}. Live data will retry on next refresh.
+        </div>
+      )}
+
       {/* Table */}
       <div className="glass rounded-xl overflow-hidden">
-        {/* Table header */}
+        {/* Header */}
         <div className="grid font-mono text-[9px] tracking-widest uppercase px-4 py-2"
           style={{
-            gridTemplateColumns: "1fr 60px 100px 80px 110px 90px 80px 90px",
+            gridTemplateColumns: "1fr 60px 110px 80px 80px 80px",
             color: "var(--muted)",
             borderBottom: "1px solid rgba(255,255,255,0.06)",
           }}>
-          <span>Satellite</span>
+          <span>Satellite / NORAD</span>
           <span>Band</span>
-          <span>Orbit</span>
+          <span>Orbit (alt · inc)</span>
+          <span>Period</span>
+          <span>Altitude</span>
           <span>Health</span>
-          <span>Battery</span>
-          <span>Solar (W)</span>
-          <span>Signal</span>
-          <span>Uptime</span>
         </div>
 
+        {/* Skeleton while loading */}
+        {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
+
         {/* Rows */}
-        {FLEET.map((sat, i) => (
+        {!loading && sats.map((sat, i) => (
           <div
-            key={sat.id}
-            className="grid items-center px-4 py-2.5 font-mono text-[11px] transition-colors duration-150"
+            key={sat.norad_id}
+            className="grid items-center px-4 py-2.5 font-mono text-[11px]"
             style={{
-              gridTemplateColumns: "1fr 60px 100px 80px 110px 90px 80px 90px",
+              gridTemplateColumns: "1fr 60px 110px 80px 80px 80px",
               background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
-              borderBottom: i < FLEET.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+              borderBottom: i < sats.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
             }}
           >
-            {/* Name */}
-            <div className="flex flex-col">
-              <span style={{ color: "var(--foreground)" }}>{sat.name}</span>
-              <span className="text-[9px]" style={{ color: "var(--muted)" }}>{sat.id}</span>
+            {/* Name + NORAD */}
+            <div className="flex flex-col min-w-0">
+              <span className="truncate" style={{ color: "var(--foreground)" }}>{sat.name}</span>
+              <span className="text-[9px]" style={{ color: "var(--muted)" }}>NORAD {sat.norad_id}</span>
             </div>
 
-            {/* Band badge */}
+            {/* Band */}
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded w-fit"
               style={{ background: `${BAND_COLOR[sat.band]}18`, color: BAND_COLOR[sat.band] }}>
               {sat.band}
             </span>
 
             {/* Orbit */}
-            <span style={{ color: "rgba(255,255,255,0.55)" }}>
-              {sat.altitude.toLocaleString()} km · {sat.inclination}°
+            <span className="text-[10px] tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>
+              {sat.altitude_km.toLocaleString()} km · {sat.inclination_deg}°
             </span>
+
+            {/* Period */}
+            <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.5)" }}>
+              {sat.period_min} min
+            </span>
+
+            {/* Altitude bar */}
+            <BarCell value={sat.altitude_km} max={36000} color={BAND_COLOR[sat.band]} />
 
             {/* Health */}
             <span className="text-[9px] font-bold tracking-widest"
               style={{ color: HEALTH_COLOR[sat.health] }}>
-              {sat.health === "OFFLINE" ? "● OFFLINE" :
-               sat.health === "CRITICAL" ? "▲ CRITICAL" :
-               sat.health === "DEGRADED" ? "◆ DEGRADED" : "✓ NOMINAL"}
+              {sat.health === "OFFLINE"  ? "● OFFLINE"   :
+               sat.health === "CRITICAL" ? "▲ CRITICAL"  :
+               sat.health === "DEGRADED" ? "◆ DEGRADED"  : "✓ NOMINAL"}
             </span>
-
-            {/* Battery bar */}
-            <div className="pr-2">
-              <BarCell value={sat.battery} max={100}
-                color={sat.battery < 20 ? "var(--red)" : sat.battery < 50 ? "var(--amber)" : "var(--emerald)"} />
-            </div>
-
-            {/* Solar */}
-            <span className="tabular-nums" style={{ color: sat.solar < 50 ? "var(--red)" : "rgba(255,255,255,0.6)" }}>
-              {sat.solar} W
-            </span>
-
-            {/* Signal */}
-            <span className="tabular-nums"
-              style={{ color: sat.signal < -110 ? "var(--red)" : sat.signal < -95 ? "var(--amber)" : "rgba(255,255,255,0.6)" }}>
-              {sat.signal} dBm
-            </span>
-
-            {/* Uptime */}
-            <span style={{ color: "rgba(255,255,255,0.45)" }}>{sat.uptime}</span>
           </div>
         ))}
+
+        {/* No data */}
+        {!loading && !error && sats.length === 0 && (
+          <div className="px-4 py-6 text-center font-mono text-[11px]" style={{ color: "var(--muted)" }}>
+            No satellite records loaded.
+          </div>
+        )}
       </div>
 
       <p className="text-[9px] font-mono" style={{ color: "var(--muted)" }}>
-        Simulated telemetry · TLE epoch T+0 · Battery SoC via coulomb counting model · Solar output at current β angle
+        Live orbital data from CelesTrak satcat API (celestrak.org) ·
+        Altitude = mean of apogee + perigee · Health from operational status code
       </p>
     </div>
   );

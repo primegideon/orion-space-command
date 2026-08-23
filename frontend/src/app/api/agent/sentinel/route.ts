@@ -23,6 +23,7 @@ interface NeoCloseApproach {
   relative_velocity: { kilometers_per_hour: string };
 }
 interface NeoObject {
+  id: string;              // NASA SPK-ID (e.g. "2465633")
   name: string;
   is_potentially_hazardous_asteroid: boolean;
   estimated_diameter: NeoEstimatedDiameter;
@@ -44,6 +45,7 @@ function flattenNeo(feed: NeoWsFeed): AsteroidItem[] {
       const ca = neo.close_approach_data?.[0];
       items.push({
         name: neo.name,
+        nasa_id: neo.id,
         miss_distance_km: ca
           ? Math.round(parseFloat(ca.miss_distance.kilometers))
           : null,

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export type ViewId = "telemetry" | "analytics" | "fleet" | "log" | "ground";
+export type ViewId = "telemetry" | "analytics" | "fleet" | "log" | "ground" | "orbit";
 
 interface Props {
   view: ViewId;
@@ -71,6 +71,18 @@ const NAV_ITEMS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
         <path d="M13 10c1-1 2.5-1.5 3-1.5S19 9 20 10" />
         <path d="M12 7c1.5-2 4-3 4-3s2.5 1 4 3" />
         <line x1="3" y1="20" x2="21" y2="20" />
+      </svg>
+    ),
+  },
+  {
+    id: "orbit",
+    label: "Orbit Viewer",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="12" cy="12" rx="10" ry="4" />
+        <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)" />
+        <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)" />
+        <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
       </svg>
     ),
   },

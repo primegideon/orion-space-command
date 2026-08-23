@@ -1,93 +1,138 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { DsnDish, DsnResponse, DsnStation } from "@/app/api/dsn/route";
 
-/* ── Simulated DSN / ground station grid ──────────────────────────────────*/
+/* ════════════════════════════════════════════════════════════════════════════
+ *  GROUND RELAY GRID — Live NASA Deep Space Network
+ *  Data source: https://eyes.nasa.gov/dsn/data/dsn.xml  (~5 s cadence)
+ *  Backend:     /api/dsn   (parses XML → JSON, 15 s cache)
+ * ══════════════════════════════════════════════════════════════════════════*/
 
-type StationStatus = "UPLINK" | "DOWNLINK" | "STANDBY" | "OFFLINE" | "MAINTENANCE";
+type DishStatus = DsnDish["status"];
 
-interface Station {
-  id: string;
-  name: string;
-  location: string;
-  lat: number;
-  lng: number;
-  status: StationStatus;
-  elevation: number;    // current target elevation (deg)
-  dataRate: number;     // Mbps
-  freqBand: string;
-  nextContact: string;
-  asset: string;
-}
-
-const STATIONS: Station[] = [
-  { id: "DSN-14",  name: "Goldstone DSS-14", location: "Mojave, CA, USA",   lat: 35.4,  lng: -116.9, status: "UPLINK",      elevation: 42,  dataRate: 4.8,  freqBand: "X-band",  nextContact: "T+00:12:30", asset: "ORION-CORE-1"  },
-  { id: "DSN-63",  name: "Madrid DSS-63",    location: "Robledo, Spain",    lat: 40.4,  lng: -4.2,   status: "DOWNLINK",    elevation: 31,  dataRate: 2.1,  freqBand: "Ka-band", nextContact: "T+00:08:15", asset: "GEO-SYNC-4"   },
-  { id: "DSN-43",  name: "Canberra DSS-43",  location: "Tidbinbilla, AUS",  lat: -35.4, lng: 148.9,  status: "STANDBY",     elevation: 0,   dataRate: 0.0,  freqBand: "S-band",  nextContact: "T+02:44:00", asset: "RELAY-STAR-9"  },
-  { id: "ESA-ESOC",name: "ESA ESOC",         location: "Darmstadt, Germany",lat: 49.8,  lng: 8.6,    status: "UPLINK",      elevation: 58,  dataRate: 6.2,  freqBand: "X-band",  nextContact: "T+00:03:45", asset: "ORION-CORE-2"  },
-  { id: "JAXA-UD", name: "JAXA Uchinoura",   location: "Kimotsuki, Japan",  lat: 31.2,  lng: 131.1,  status: "DOWNLINK",    elevation: 22,  dataRate: 1.4,  freqBand: "S-band",  nextContact: "T+00:19:00", asset: "SCOUT-2"      },
-  { id: "ISRO-BY", name: "ISRO Bylalu",      location: "Bengaluru, India",  lat: 13.0,  lng: 77.5,   status: "STANDBY",     elevation: 0,   dataRate: 0.0,  freqBand: "S-band",  nextContact: "T+01:02:00", asset: "HALO-ORB-2"   },
-  { id: "SSC-SK",  name: "SSC Svalbard",     location: "Longyearbyen, NOR", lat: 78.2,  lng: 15.4,   status: "UPLINK",      elevation: 14,  dataRate: 3.3,  freqBand: "X-band",  nextContact: "T+00:06:20", asset: "ORION-CORE-3"  },
-  { id: "KSAT-TR", name: "KSAT Troll",       location: "Antarctica",        lat: -72.0, lng: 2.5,    status: "MAINTENANCE", elevation: 0,   dataRate: 0.0,  freqBand: "X-band",  nextContact: "T+06:00:00", asset: "—"            },
-  { id: "CNES-TS", name: "CNES Toulouse",    location: "Toulouse, France",  lat: 43.6,  lng: 1.4,    status: "OFFLINE",     elevation: 0,   dataRate: 0.0,  freqBand: "Ka-band", nextContact: "T+12:00:00", asset: "—"            },
-];
-
-const STATUS_COLOR: Record<StationStatus, string> = {
+const STATUS_COLOR: Record<DishStatus, string> = {
   UPLINK:      "var(--cyan)",
   DOWNLINK:    "var(--emerald)",
+  BOTH:        "#a78bfa",
   STANDBY:     "var(--amber)",
-  OFFLINE:     "var(--red)",
-  MAINTENANCE: "#a78bfa",
+  MAINTENANCE: "rgba(255,255,255,0.3)",
 };
 
-const STATUS_ICON: Record<StationStatus, string> = {
+const STATUS_ICON: Record<DishStatus, string> = {
   UPLINK:      "▲",
   DOWNLINK:    "▼",
+  BOTH:        "⇅",
   STANDBY:     "◉",
-  OFFLINE:     "✕",
   MAINTENANCE: "⚙",
 };
 
-/* ── Tiny world-map dot grid (SVG) ────────────────────────────────────────*/
-function WorldDots({ stations }: { stations: Station[] }) {
-  // Map lat/lng to SVG coords (simple equirectangular)
+/* ── Data-rate formatter ──────────────────────────────────────────────────*/
+function fmtBps(bps: number): string {
+  if (bps <= 0)               return "—";
+  if (bps >= 1_000_000)       return `${(bps / 1_000_000).toFixed(2)} Mbps`;
+  if (bps >= 1_000)           return `${(bps / 1_000).toFixed(1)} kbps`;
+  return `${bps} bps`;
+}
+
+/* ── Range formatter ──────────────────────────────────────────────────────*/
+function fmtRange(km: number | null): string {
+  if (km === null || km <= 0) return "—";
+  if (km >= 1_000_000)        return `${(km / 1_000_000).toFixed(2)} Gkm`;
+  if (km >= 1_000)            return `${(km / 1_000).toFixed(0)} Mkm`;
+  return `${km.toLocaleString()} km`;
+}
+
+/* ── RTLT formatter ───────────────────────────────────────────────────────*/
+function fmtRtlt(s: number | null): string {
+  if (s === null || s < 0) return "—";
+  if (s >= 3600) return `${(s / 3600).toFixed(1)} h`;
+  if (s >= 60)   return `${Math.round(s / 60)} min`;
+  return `${Math.round(s)} s`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  WORLD MAP  — equirectangular SVG with live pulsing dots
+ * ══════════════════════════════════════════════════════════════════════════*/
+
+/** Fixed known locations for each DSN complex */
+const COMPLEX_COORDS: Record<string, { lat: number; lng: number }> = {
+  gdscc: { lat: 35.43,  lng: -116.89 },
+  mdscc: { lat: 40.43,  lng: -4.25   },
+  cdscc: { lat: -35.40, lng:  148.98  },
+};
+
+interface MapStation {
+  id:     string;
+  name:   string;
+  lat:    number;
+  lng:    number;
+  active: boolean;
+  color:  string;
+}
+
+function WorldMap({ stations }: { stations: DsnStation[] }) {
   const W = 360, H = 160;
   function proj(lat: number, lng: number) {
-    const x = ((lng + 180) / 360) * W;
-    const y = ((90 - lat) / 180) * H;
-    return { x, y };
+    return {
+      x: ((lng + 180) / 360) * W,
+      y: ((90 - lat) / 180) * H,
+    };
   }
+
+  // Collapse dishes into per-complex status
+  const mapStations: MapStation[] = stations.map((st) => {
+    const coords  = COMPLEX_COORDS[st.id] ?? { lat: st.lat, lng: st.lng };
+    const active  = st.dishes.some((d) => d.isActive);
+    const hasUp   = st.dishes.some((d) => d.status === "UPLINK" || d.status === "BOTH");
+    const hasDown = st.dishes.some((d) => d.status === "DOWNLINK" || d.status === "BOTH");
+    const color   = active
+      ? (hasUp && hasDown ? "#a78bfa" : hasUp ? "var(--cyan)" : "var(--emerald)")
+      : "var(--amber)";
+    return { id: st.id, name: st.name, lat: coords.lat, lng: coords.lng, active, color };
+  });
 
   return (
     <div className="glass rounded-xl p-3 mb-4 overflow-hidden">
-      <p className="text-[9px] font-mono tracking-widest uppercase mb-2" style={{ color: "var(--muted)" }}>
-        Ground Station Map · Equirectangular Projection
-      </p>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[9px] font-mono tracking-widest uppercase" style={{ color: "var(--muted)" }}>
+          Ground Station Map · Equirectangular Projection · NASA DSN Live
+        </p>
+        <div className="flex gap-3 text-[8px] font-mono" style={{ color: "var(--muted)" }}>
+          <span style={{ color: "var(--cyan)"    }}>▲ Uplink</span>
+          <span style={{ color: "var(--emerald)"}}>▼ Downlink</span>
+          <span style={{ color: "#a78bfa"        }}>⇅ Both</span>
+          <span style={{ color: "var(--amber)"   }}>◉ Standby</span>
+        </div>
+      </div>
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
-        {/* Subtle grid */}
-        {[-60,-30,0,30,60].map((lat) => {
+        {/* Grid lines */}
+        {[-60, -30, 0, 30, 60].map((lat) => {
           const y = ((90 - lat) / 180) * H;
-          return <line key={lat} x1={0} y1={y} x2={W} y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth={0.5} />;
+          return <line key={`lat${lat}`} x1={0} y1={y} x2={W} y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth={0.5} />;
         })}
-        {[-120,-60,0,60,120].map((lng) => {
+        {[-120, -60, 0, 60, 120].map((lng) => {
           const x = ((lng + 180) / 360) * W;
-          return <line key={lng} x1={x} y1={0} x2={x} y2={H} stroke="rgba(255,255,255,0.04)" strokeWidth={0.5} />;
+          return <line key={`lng${lng}`} x1={x} y1={0} x2={x} y2={H} stroke="rgba(255,255,255,0.04)" strokeWidth={0.5} />;
         })}
 
-        {/* Station dots */}
-        {stations.map((s) => {
+        {/* Complex dots */}
+        {mapStations.map((s) => {
           const { x, y } = proj(s.lat, s.lng);
-          const col = STATUS_COLOR[s.status];
-          const active = s.status === "UPLINK" || s.status === "DOWNLINK";
           return (
             <g key={s.id}>
-              {active && (
-                <circle cx={x} cy={y} r={6} fill="none" stroke={col} strokeWidth={0.8} opacity={0.3}>
-                  <animate attributeName="r" from={4} to={10} dur="2s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" from={0.4} to={0} dur="2s" repeatCount="indefinite" />
+              {/* Outer pulse ring — only when actively transmitting/receiving */}
+              {s.active && (
+                <circle cx={x} cy={y} r={6} fill="none" stroke={s.color} strokeWidth={0.8} opacity={0.25}>
+                  <animate attributeName="r"       from="4"   to="12"  dur="2.4s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" from="0.4" to="0"   dur="2.4s" repeatCount="indefinite" />
                 </circle>
               )}
-              <circle cx={x} cy={y} r={3} fill={col} opacity={0.9} />
+              {/* Core dot */}
+              <circle cx={x} cy={y} r={s.active ? 3.5 : 2.5} fill={s.color} opacity={0.92} />
+              {/* Label */}
+              <text x={x + 5} y={y + 3} fontSize={6} fontFamily="monospace"
+                fill="rgba(255,255,255,0.5)">{s.name}</text>
             </g>
           );
         })}
@@ -96,103 +141,375 @@ function WorldDots({ stations }: { stations: Station[] }) {
   );
 }
 
-// Tick uplink data rates slightly every 4s for live feel
-function useLiveRates(base: Station[]) {
-  const [rates, setRates] = useState(base.map((s) => s.dataRate));
-  useEffect(() => {
-    const id = setInterval(() => {
-      setRates(base.map((s) => {
-        if (s.status !== "UPLINK" && s.status !== "DOWNLINK") return 0;
-        const jitter = (Math.random() - 0.5) * 0.4;
-        return Math.max(0.1, +(s.dataRate + jitter).toFixed(1));
-      }));
-    }, 4000);
-    return () => clearInterval(id);
-  }, [base]);
-  return rates;
+/* ══════════════════════════════════════════════════════════════════════════
+ *  SIGNAL PILL — compact inline signal indicator
+ * ══════════════════════════════════════════════════════════════════════════*/
+function SignalPill({ dir, rate, band, active }: { dir: "↑" | "↓"; rate: number; band: string; active: boolean }) {
+  const color = active
+    ? (dir === "↑" ? "var(--cyan)" : "var(--emerald)")
+    : "rgba(255,255,255,0.2)";
+  return (
+    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-mono text-[8px]"
+      style={{ background: `${color}18`, border: `1px solid ${color}44`, color }}>
+      {dir} {active ? fmtBps(rate) : "—"} {band && `(${band})`}
+    </span>
+  );
 }
 
-export default function GroundRelayGrid() {
-  const liveRates = useLiveRates(STATIONS);
+/* ══════════════════════════════════════════════════════════════════════════
+ *  DISH CARD — expanded row for one DSN dish
+ * ══════════════════════════════════════════════════════════════════════════*/
+function DishCard({ dish, index, total }: { dish: DsnDish; index: number; total: number }) {
+  const col    = STATUS_COLOR[dish.status];
+  const icon   = STATUS_ICON[dish.status];
+  const target = dish.targets.find(t => t.name !== "DSN") ?? dish.targets[0];
 
-  const activeCount  = STATIONS.filter((s) => s.status === "UPLINK" || s.status === "DOWNLINK").length;
-  const standbyCount = STATIONS.filter((s) => s.status === "STANDBY").length;
-  const offlineCount = STATIONS.filter((s) => s.status === "OFFLINE" || s.status === "MAINTENANCE").length;
+  // Collect unique active spacecraft names
+  const craftNames = Array.from(new Set(
+    dish.signals.filter(s => s.active && s.spacecraft).map(s => s.spacecraft)
+  ));
+  const craftLabel = craftNames.length > 0 ? craftNames.join(", ") : dish.spacecraft !== "—" ? dish.spacecraft : "—";
+
+  // Active up/down signals
+  const upSignals   = dish.signals.filter(s => s.direction === "uplink");
+  const downSignals = dish.signals.filter(s => s.direction === "downlink");
 
   return (
-    <div className="flex flex-col gap-4 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <p className="text-[11px] font-mono font-bold tracking-widest uppercase" style={{ color: "var(--cyan)" }}>
-            Ground Relay Grid
-          </p>
-          <p className="text-[10px] font-mono mt-0.5" style={{ color: "var(--muted)" }}>
-            DSN · ESA · JAXA · ISRO · SSC · KSAT uplink status
-          </p>
+    <div className="px-4 py-3 font-mono text-[10px]"
+      style={{
+        background:   index % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
+        borderBottom: index < total - 1  ? "1px solid rgba(255,255,255,0.04)" : "none",
+        borderLeft:   dish.isActive ? `2px solid ${col}` : "2px solid transparent",
+      }}
+    >
+      {/* Row 1: Dish name, complex, status, spacecraft */}
+      <div className="grid items-center gap-x-3"
+        style={{ gridTemplateColumns: "120px 90px 80px 1fr 80px 90px" }}>
+
+        {/* Dish name */}
+        <div className="flex flex-col">
+          <span className="font-bold text-[11px]" style={{ color: "rgba(255,255,255,0.9)" }}>
+            {dish.name}
+          </span>
+          <span className="text-[8px]" style={{ color: "var(--muted)" }}>
+            {dish.complexName}
+          </span>
         </div>
-        <div className="flex gap-3 text-[10px] font-mono">
-          <span style={{ color: "var(--cyan)"    }}>▲▼ {activeCount} Active</span>
-          <span style={{ color: "var(--amber)"   }}>◉ {standbyCount} Standby</span>
-          <span style={{ color: "var(--red)"     }}>✕ {offlineCount} Down</span>
+
+        {/* Status */}
+        <span className="font-bold text-[9px]" style={{ color: col }}>
+          {icon} {dish.status}
+        </span>
+
+        {/* Elevation / Azimuth */}
+        <div className="flex flex-col">
+          <span className="tabular-nums" style={{ color: dish.elevation > 0 ? "rgba(255,255,255,0.65)" : "var(--muted)" }}>
+            El {dish.elevation > 0 ? `${dish.elevation}°` : "—"}
+          </span>
+          <span className="text-[8px] tabular-nums" style={{ color: "var(--muted)" }}>
+            Az {dish.azimuth}°
+          </span>
+        </div>
+
+        {/* Spacecraft + signals */}
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <span className="truncate font-bold" style={{ color: dish.isActive ? "var(--cyan)" : "rgba(255,255,255,0.4)" }}>
+            {craftLabel}
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {upSignals.map((s, i) => (
+              <SignalPill key={`u${i}`} dir="↑" rate={s.dataRate} band={s.band} active={s.active} />
+            ))}
+            {downSignals.map((s, i) => (
+              <SignalPill key={`d${i}`} dir="↓" rate={s.dataRate} band={s.band} active={s.active} />
+            ))}
+          </div>
+        </div>
+
+        {/* Range */}
+        <div className="flex flex-col">
+          <span className="text-[8px] tracking-wider uppercase" style={{ color: "var(--muted)" }}>Range</span>
+          <span className="tabular-nums text-[9px]" style={{ color: "rgba(255,255,255,0.5)" }}>
+            {fmtRange(target?.downlegRange ?? null)}
+          </span>
+        </div>
+
+        {/* RTLT */}
+        <div className="flex flex-col">
+          <span className="text-[8px] tracking-wider uppercase" style={{ color: "var(--muted)" }}>RTLT</span>
+          <span className="tabular-nums text-[9px]" style={{ color: "rgba(255,255,255,0.5)" }}>
+            {fmtRtlt(target?.rtlt ?? null)}
+          </span>
         </div>
       </div>
 
-      <WorldDots stations={STATIONS} />
+      {/* Activity label — only when non-trivial */}
+      {dish.activity && (
+        <p className="mt-1 text-[8px] truncate" style={{ color: "rgba(255,255,255,0.25)" }}>
+          {dish.activity}
+        </p>
+      )}
+    </div>
+  );
+}
 
-      {/* Station table */}
+/* ══════════════════════════════════════════════════════════════════════════
+ *  SKELETON loader
+ * ══════════════════════════════════════════════════════════════════════════*/
+function Skeleton() {
+  return (
+    <div className="flex flex-col gap-4 animate-fade-in">
+      <div className="glass rounded-xl p-3" style={{ height: 180 }}>
+        <div className="skeleton w-48 h-3 mb-3 rounded" />
+        <div className="skeleton w-full rounded" style={{ height: 140 }} />
+      </div>
       <div className="glass rounded-xl overflow-hidden">
-        <div className="grid font-mono text-[9px] tracking-widest uppercase px-4 py-2"
-          style={{
-            gridTemplateColumns: "1fr 140px 70px 70px 70px 100px 90px",
-            color: "var(--muted)",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-          }}>
-          <span>Station</span>
-          <span>Location</span>
-          <span>Status</span>
-          <span>El (°)</span>
-          <span>Data Rate</span>
-          <span>Band / Asset</span>
-          <span>Next Contact</span>
-        </div>
+        {[1,2,3,4,5,6].map(i => (
+          <div key={i} className="px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="flex gap-4">
+              <div className="skeleton w-28 h-4 rounded" />
+              <div className="skeleton w-20 h-4 rounded" />
+              <div className="skeleton w-40 h-4 rounded" />
+              <div className="skeleton flex-1 h-4 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-        {STATIONS.map((s, i) => (
-          <div
-            key={s.id}
-            className="grid items-center px-4 py-2.5 font-mono text-[10px]"
-            style={{
-              gridTemplateColumns: "1fr 140px 70px 70px 70px 100px 90px",
-              background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
-              borderBottom: i < STATIONS.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-            }}
+/* ══════════════════════════════════════════════════════════════════════════
+ *  MAIN COMPONENT
+ * ══════════════════════════════════════════════════════════════════════════*/
+export default function GroundRelayGrid() {
+  const [data,        setData]        = useState<DsnResponse | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+  const [syncedAt,    setSyncedAt]    = useState<string>("");
+
+  /** Core fetch — `bust` adds a cache-busting query param for manual refreshes */
+  const fetchDsn = useCallback(async (bust = false) => {
+    try {
+      const url = bust ? `/api/dsn?t=${Date.now()}` : "/api/dsn";
+      const res = await fetch(url, bust ? { cache: "no-store" } : undefined);
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const json = await res.json() as DsnResponse & { error?: string };
+      if (json.error) throw new Error(json.error);
+      setData(json);
+      const d = new Date();
+      setSyncedAt(
+        [d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()]
+          .map(n => String(n).padStart(2, "0")).join(":") + " UTC"
+      );
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "DSN feed unavailable");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  const handleManualRefresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    fetchDsn(true);
+  }, [fetchDsn, refreshing]);
+
+  useEffect(() => {
+    fetchDsn();
+    // Poll every 15 s — matches backend cache window
+    const poll = setInterval(() => fetchDsn(), 15_000);
+    return () => clearInterval(poll);
+  }, [fetchDsn]);
+
+  if (loading) return <Skeleton />;
+
+  if (error) {
+    return (
+      <div className="glass rounded-xl px-5 py-4 font-mono text-sm animate-fade-in"
+        style={{ color: "var(--red)", borderColor: "rgba(248,113,113,0.3)" }}>
+        <span className="opacity-60 mr-2">[DSN ERROR]</span>{error}
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const { stations, dishes } = data;
+
+  const activeCount  = dishes.filter(d => d.isActive).length;
+  const standbyCount = dishes.filter(d => !d.isActive && d.status === "STANDBY").length;
+  const maintCount   = dishes.filter(d => d.status === "MAINTENANCE").length;
+
+  // Total live downlink rate
+  const totalDownBps = dishes.reduce((acc, d) => acc + d.maxDownlinkBps, 0);
+  const totalUpBps   = dishes.reduce((acc, d) => acc + d.maxUplinkBps, 0);
+
+  // Unique active spacecraft
+  const activeCraft = Array.from(new Set(
+    dishes
+      .filter(d => d.isActive)
+      .flatMap(d => d.signals.filter(s => s.active && s.spacecraft).map(s => s.spacecraft))
+  ));
+
+  // DSN feed epoch
+  const feedEpoch = data.timestamp > 0
+    ? new Date(data.timestamp).toISOString().slice(11, 19) + " UTC"
+    : syncedAt;
+
+  return (
+    <div className="flex flex-col gap-4 animate-fade-in">
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3">
+        {/* Title — min-w-0 allows it to compress rather than pushing badges off-screen */}
+        <div className="flex flex-col min-w-0 flex-1">
+          <p className="text-[11px] font-mono font-bold tracking-widest uppercase truncate" style={{ color: "var(--cyan)" }}>
+            Ground Relay Grid
+          </p>
+          <p className="text-[10px] font-mono mt-0.5 truncate" style={{ color: "var(--muted)" }}>
+            NASA Deep Space Network · Live XML feed · {stations.map(s => s.name).join(" · ")}
+          </p>
+        </div>
+        {/* Badges — shrink-0 keeps them fully visible at all viewport widths */}
+        <div className="flex items-center gap-2 shrink-0">
+          {syncedAt && (
+            <span className="font-mono text-[8px] tracking-widest px-2 py-0.5 rounded-full whitespace-nowrap"
+              style={{ background: "rgba(0,210,230,0.08)", border: "1px solid rgba(0,210,230,0.2)", color: "var(--cyan)" }}>
+              LIVE · {syncedAt}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={refreshing}
+            className="font-mono text-[8px] px-2.5 py-1 rounded-full transition-all duration-200 shrink-0 whitespace-nowrap disabled:opacity-50"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--muted)" }}
+            title="Refresh DSN feed now (bypasses cache)"
           >
-            <div className="flex flex-col">
-              <span style={{ color: "rgba(255,255,255,0.85)" }}>{s.name}</span>
-              <span className="text-[9px]" style={{ color: "var(--muted)" }}>{s.id}</span>
+            {refreshing ? "…" : "↻"} Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* ── Stats row ───────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[
+          { label: "Active Dishes",   value: activeCount,           color: "var(--cyan)"     },
+          { label: "Standby",         value: standbyCount,          color: "var(--amber)"    },
+          { label: "Maintenance",     value: maintCount,            color: "rgba(255,255,255,0.4)" },
+          { label: "Active Craft",    value: activeCraft.length,    color: "var(--emerald)"  },
+        ].map((s) => (
+          <div key={s.label} className="glass rounded-xl px-3 py-2 flex items-center gap-3">
+            <div className="flex flex-col min-w-0">
+              <span className="text-[8px] font-mono tracking-widest uppercase" style={{ color: "var(--muted)" }}>{s.label}</span>
             </div>
-            <span style={{ color: "rgba(255,255,255,0.45)" }}>{s.location}</span>
-            <span className="font-bold text-[9px]" style={{ color: STATUS_COLOR[s.status] }}>
-              {STATUS_ICON[s.status]} {s.status}
-            </span>
-            <span className="tabular-nums" style={{ color: s.elevation > 0 ? "rgba(255,255,255,0.6)" : "var(--muted)" }}>
-              {s.elevation > 0 ? `${s.elevation}°` : "—"}
-            </span>
-            <span className="tabular-nums"
-              style={{ color: liveRates[i] > 0 ? "var(--cyan)" : "var(--muted)", transition: "color 0.5s" }}>
-              {liveRates[i] > 0 ? `${liveRates[i].toFixed(1)} Mbps` : "—"}
-            </span>
-            <div className="flex flex-col">
-              <span style={{ color: "rgba(255,255,255,0.5)" }}>{s.freqBand}</span>
-              <span className="text-[9px]" style={{ color: "var(--cyan)", opacity: 0.7 }}>{s.asset}</span>
-            </div>
-            <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.45)" }}>{s.nextContact}</span>
+            <span className="text-[18px] font-mono font-bold tabular-nums ml-auto" style={{ color: s.color }}>{s.value}</span>
           </div>
         ))}
       </div>
 
+      {/* ── Total data rates ────────────────────────────────────────────── */}
+      {(totalDownBps > 0 || totalUpBps > 0) && (
+        <div className="flex gap-4 px-4 py-2.5 rounded-xl font-mono text-[10px] flex-wrap"
+          style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center gap-2">
+            <span style={{ color: "var(--muted)" }}>Total ↓ Downlink:</span>
+            <span className="font-bold tabular-nums" style={{ color: "var(--emerald)" }}>{fmtBps(totalDownBps)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span style={{ color: "var(--muted)" }}>Total ↑ Uplink:</span>
+            <span className="font-bold tabular-nums" style={{ color: "var(--cyan)" }}>{fmtBps(totalUpBps)}</span>
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <span style={{ color: "var(--muted)" }}>Feed epoch:</span>
+            <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.4)" }}>{feedEpoch}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Active spacecraft ticker ─────────────────────────────────────── */}
+      {activeCraft.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[8px] font-mono tracking-widest uppercase shrink-0" style={{ color: "var(--muted)" }}>
+            Active spacecraft:
+          </span>
+          {activeCraft.map(c => (
+            <span key={c} className="px-1.5 py-0.5 rounded font-mono text-[9px] font-bold"
+              style={{ background: "rgba(0,210,230,0.08)", border: "1px solid rgba(0,210,230,0.2)", color: "var(--cyan)" }}>
+              {c}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* ── World map ───────────────────────────────────────────────────── */}
+      <WorldMap stations={stations} />
+
+      {/* ── Per-complex section ─────────────────────────────────────────── */}
+      {stations.map((station) => {
+        const stActive = station.dishes.filter(d => d.isActive).length;
+        return (
+          <div key={station.id} className="flex flex-col gap-1">
+            {/* Complex header */}
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full shrink-0"
+                  style={{ background: stActive > 0 ? "var(--cyan)" : "var(--amber)",
+                           boxShadow: stActive > 0 ? "0 0 6px var(--cyan)" : "none" }} />
+                <p className="text-[10px] font-mono font-bold tracking-widest uppercase"
+                  style={{ color: stActive > 0 ? "var(--cyan)" : "var(--muted)" }}>
+                  {station.name} ({station.id.toUpperCase()}) · {station.location}
+                </p>
+              </div>
+              <span className="font-mono text-[9px]" style={{ color: "var(--muted)" }}>
+                {stActive} / {station.dishes.length} active
+              </span>
+            </div>
+
+            {/* Dish table */}
+            <div className="glass rounded-xl overflow-hidden">
+              {/* Column header */}
+              <div className="grid px-4 py-1.5 font-mono text-[8px] tracking-widest uppercase"
+                style={{
+                  gridTemplateColumns: "120px 90px 80px 1fr 80px 90px",
+                  color: "var(--muted)",
+                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                }}>
+                <span>Dish</span>
+                <span>Status</span>
+                <span>El / Az</span>
+                <span>Spacecraft / Signals</span>
+                <span>Range</span>
+                <span>RTLT</span>
+              </div>
+
+              {station.dishes.length === 0 && (
+                <p className="px-4 py-3 text-[10px] font-mono" style={{ color: "var(--muted)" }}>
+                  No dish data for this complex.
+                </p>
+              )}
+
+              {station.dishes.map((dish, i) => (
+                <DishCard
+                  key={dish.name}
+                  dish={dish}
+                  index={i}
+                  total={station.dishes.length}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* ── Footer ──────────────────────────────────────────────────────── */}
       <p className="text-[9px] font-mono" style={{ color: "var(--muted)" }}>
-        Simulated contact schedule · Data rates update live via jitter model · Elevation angles from current TLE epoch
+        Source: NASA DSN Now · eyes.nasa.gov/dsn/data/dsn.xml · Feed updates every ~5 s · ORION polls every 15 s ·
+        Data rates, signals and spacecraft IDs parsed directly from DONKI XML telemetry
       </p>
     </div>
   );

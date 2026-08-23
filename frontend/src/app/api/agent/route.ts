@@ -8,6 +8,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "@/lib/watsonx";
+import { insertLog } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -130,6 +131,8 @@ function keywordRoute(q: string): string | null {
 }
 
 export async function POST(req: NextRequest) {
+  const routeStart = Date.now();
+
   try {
     const body: unknown = await req.json();
     const query = (body as Record<string, unknown>)?.query;
@@ -180,7 +183,7 @@ export async function POST(req: NextRequest) {
       intent = "sentinel";
     }
 
-    // Step 2 — forward to the relevant sub-agent by making an internal fetch
+    // Step 3 — forward to the relevant sub-agent by making an internal fetch
     const host = req.headers.get("host") ?? "localhost:3000";
     const protocol = host.startsWith("localhost") ? "http" : "https";
     const subAgentUrl = `${protocol}://${host}/api/agent/${intent}`;
@@ -191,12 +194,40 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({ query: subQuery }),
     });
 
-    const subData: unknown = await subRes.json();
-    return NextResponse.json({ intent, ...(subData as Record<string, unknown>) }, {
+    const subData = await subRes.json() as Record<string, unknown>;
+    const latency_ms = Date.now() - routeStart;
+
+    // Step 4 — persist log row to Supabase (fire-and-forget, never blocks response)
+    const tokenUsage =
+      typeof subData.token_usage === "number" ? subData.token_usage :
+      typeof subData.tokens       === "number" ? subData.tokens       : 0;
+
+    void insertLog({
+      query_string:   q,
+      resolved_agent: intent as "sentinel" | "forecaster" | "archivist",
+      latency_ms,
+      token_usage:    tokenUsage,
+      status:         subRes.ok ? "OK" : "WARN",
+    });
+
+    return NextResponse.json({ intent, ...subData }, {
       status: subRes.ok ? 200 : subRes.status,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const latency_ms = Date.now() - routeStart;
+    const q = "";   // query may not have been parsed yet
+
+    // Best-effort error log
+    void insertLog({
+      query_string:   q,
+      resolved_agent: "error",
+      latency_ms,
+      token_usage:    0,
+      status:         "ERROR",
+      error_message:  message,
+    });
+
     return NextResponse.json(
       { intent: "error", error: message, items: [], summary: "" },
       { status: 500 }

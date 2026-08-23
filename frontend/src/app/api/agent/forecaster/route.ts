@@ -53,7 +53,25 @@ Write a single paragraph of 2-3 sentences as a professional space-weather adviso
 
 /* ── output sanitiser ────────────────────────────────────────────────────── */
 function cleanSummary(raw: string): string {
-  return raw
+  let text = raw;
+
+  // If the model emitted an edit/rewrite marker, keep only the final version
+  const editMarkers = [
+    /\bis\s+rewritten\s+to\s*:?\s*/i,
+    /\bhas\s+been\s+rewritten\s+as\s*:?\s*/i,
+    /\brevised\s+version\s*:?\s*/i,
+    /\bupdated\s+paragraph\s*:?\s*/i,
+    /\bhere\s+is\s+the\s+rewritten[^:\n]*:?\s*/i,
+    /\bhere'?s?\s+the\s+(?:rewritten|updated|revised)[^:\n]*:?\s*/i,
+  ];
+  for (const marker of editMarkers) {
+    const parts = text.split(marker);
+    if (parts.length > 1) {
+      text = parts[parts.length - 1];
+    }
+  }
+
+  text = text
     // Strip markdown code fences (```...```)
     .replace(/```[\s\S]*?```/g, "")
     // Strip inline backticks
@@ -69,6 +87,25 @@ function cleanSummary(raw: string): string {
     // Collapse multiple blank lines to one
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
+  // De-duplicate: if the same sentence block appears twice in a row
+  // (model repeated itself without any marker), keep only the first occurrence.
+  // Split on sentence boundaries, then check for a repeated run of ≥3 sentences.
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  if (sentences.length >= 6) {
+    const half = Math.floor(sentences.length / 2);
+    const firstHalf  = sentences.slice(0, half).join(" ").toLowerCase();
+    const secondHalf = sentences.slice(sentences.length - half).join(" ").toLowerCase();
+    // Levenshtein-free similarity: if second half starts with ≥60% of first half's words
+    const firstWords  = new Set(firstHalf.split(/\W+/).filter(Boolean));
+    const secondWords = secondHalf.split(/\W+/).filter(Boolean);
+    const overlap = secondWords.filter(w => firstWords.has(w)).length;
+    if (overlap / firstWords.size > 0.6) {
+      text = sentences.slice(0, half).join(" ").trim();
+    }
+  }
+
+  return text;
 }
 
 /* ── route handler ───────────────────────────────────────────────────────── */
@@ -95,7 +132,7 @@ export async function POST(req: NextRequest) {
       `https://api.nasa.gov/DONKI/FLR` +
       `?startDate=${period.start}&endDate=${period.end}&api_key=${nasaKey}`;
 
-    const flrRes = await fetch(donkiUrl);
+    const flrRes = await fetch(donkiUrl, { cache: "no-store" });
     if (!flrRes.ok) {
       const errText = await flrRes.text();
       throw new Error(`DONKI API returned ${flrRes.status}: ${errText}`);

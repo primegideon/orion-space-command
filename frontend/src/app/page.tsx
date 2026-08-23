@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, KeyboardEvent } from "react";
+import { useState, useEffect, useRef, KeyboardEvent, useCallback } from "react";
 import toast from "react-hot-toast";
-import SentinelPanel, { SentinelData, AsteroidItem } from "@/components/SentinelPanel";
+import SentinelPanel, { SentinelData, AsteroidItem, eyesUrl, jplOrbitUrl } from "@/components/SentinelPanel";
 import ForecasterPanel, { ForecasterData, FlareItem } from "@/components/ForecasterPanel";
 import ArchivistPanel, { ArchivistData } from "@/components/ArchivistPanel";
 import TelemetryConsole, { TelemetryLog } from "@/components/TelemetryConsole";
@@ -26,13 +26,16 @@ type AgentResult =
 const MET_EPOCH = new Date("2025-01-01T00:00:00Z"); // mission epoch
 
 function useMissionClock() {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
 
   const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+  if (!now) return { utc: "──:──:──", met: "T+──:──:──" };
+
   const utc = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}`;
 
   const elapsed = Math.floor((now.getTime() - MET_EPOCH.getTime()) / 1000);
@@ -42,6 +45,67 @@ function useMissionClock() {
   const met = `T+${pad(hh, 2)}:${pad(mm)}:${pad(ss)}`;
 
   return { utc, met };
+}
+
+/* ── IBM watsonx gateway latency ping ────────────────────────────────────── */
+function WatsonxPing() {
+  const [latency, setLatency] = useState<number | null>(null);
+  const [status,  setStatus]  = useState<"online" | "offline" | "pending">("pending");
+
+  const ping = useCallback(async () => {
+    const t0 = performance.now();
+    try {
+      await fetch("/api/agent", { method: "HEAD" });
+      const ms = Math.round(performance.now() - t0);
+      setLatency(ms);
+      setStatus("online");
+    } catch {
+      setStatus("offline");
+      setLatency(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    ping();
+    const id = setInterval(ping, 30_000);
+    return () => clearInterval(id);
+  }, [ping]);
+
+  const color  = status === "online"  ? "var(--emerald)"
+               : status === "offline" ? "var(--red)"
+               : "var(--amber)";
+  const label  = status === "online"  ? "IBM WATSONX: ONLINE"
+               : status === "offline" ? "IBM WATSONX: OFFLINE"
+               : "IBM WATSONX: …";
+
+  return (
+    <div
+      className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg shrink-0"
+      style={{
+        background: `${color}0f`,
+        border: `1px solid ${color}33`,
+      }}
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full shrink-0"
+        style={{ background: color, boxShadow: `0 0 5px ${color}` }}
+      />
+      <span
+        className="font-mono text-[10px] font-semibold tracking-widest uppercase"
+        style={{ color }}
+      >
+        {label}
+      </span>
+      {latency !== null && (
+        <span
+          className="font-mono text-[10px] tabular-nums"
+          style={{ color: "rgba(255,255,255,0.35)" }}
+        >
+          {latency}ms
+        </span>
+      )}
+    </div>
+  );
 }
 
 /* ── Web Speech API type shim ─────────────────────────────────────────────── */
@@ -67,6 +131,175 @@ declare global {
     webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
   }
 }
+
+/* ── Full-page Orbit Viewer ───────────────────────────────────────────────── */
+function OrbitViewerPage({
+  activeAsteroid,
+  allAsteroids,
+}: {
+  activeAsteroid: AsteroidItem | null;
+  allAsteroids: AsteroidItem[];
+}) {
+  const [selected, setSelected] = useState<AsteroidItem | null>(null);
+  const target = selected ?? activeAsteroid;
+
+  const noData = !target;
+  const list = allAsteroids.slice(0, 20);
+
+  return (
+    <div className="flex flex-col gap-3 animate-fade-in flex-1 min-h-0">
+
+      {/* ── Top bar ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
+        <div>
+          <p className="text-[11px] font-mono font-bold tracking-widest uppercase" style={{ color: "var(--cyan)" }}>
+            Orbit Viewer
+          </p>
+          <p className="text-[10px] font-mono mt-0.5" style={{ color: "var(--muted)" }}>
+            {noData
+              ? "Run a Sentinel query first to load asteroid data"
+              : `Viewing: ${target.name}${target.is_potentially_hazardous ? " · ⬡ PHO" : ""}`}
+          </p>
+        </div>
+        {target && (
+          <div className="flex gap-2">
+            <a
+              href={eyesUrl(target)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-[10px] font-bold tracking-widest uppercase"
+              style={{
+                background: "rgba(0,210,230,0.10)",
+                border: "1px solid rgba(0,210,230,0.3)",
+                color: "var(--cyan)",
+                textDecoration: "none",
+              }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              Open Full Screen
+            </a>
+            <a
+              href={jplOrbitUrl(target)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-[10px] font-bold tracking-widest uppercase"
+              style={{
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                color: "rgba(255,255,255,0.6)",
+                textDecoration: "none",
+              }}
+            >
+              JPL Orbit Data
+            </a>
+          </div>
+        )}
+      </div>
+
+      {/* ── No data state ───────────────────────────────────────────────── */}
+      {noData && (
+        <div className="flex flex-col items-center justify-center flex-1 gap-4 rounded-xl"
+          style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", minHeight: 400 }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+            <ellipse cx="12" cy="12" rx="10" ry="4" />
+            <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)" />
+            <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)" />
+            <circle cx="12" cy="12" r="2" fill="var(--muted)" stroke="none" />
+          </svg>
+          <div className="text-center">
+            <p className="font-mono text-[12px] font-semibold" style={{ color: "var(--muted)" }}>No asteroid loaded</p>
+            <p className="font-mono text-[10px] mt-1" style={{ color: "var(--muted)", opacity: 0.6 }}>
+              Go to Telemetry Core and run a Sentinel query, then return here
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Viewer + asteroid selector ──────────────────────────────────── */}
+      {target && (
+        <div className="flex gap-3 flex-1 min-h-0">
+
+          {/* iframe — explicit height matches the sidebar so both fill to bottom */}
+          <div className="flex-1 rounded-xl overflow-hidden relative"
+            style={{ background: "#000", border: "1px solid var(--border)", height: "calc(100vh - 180px)" }}>
+            <iframe
+              key={eyesUrl(target)}
+              src={eyesUrl(target)}
+              title={`NASA Eyes on the Solar System · ${target.name}`}
+              allow="fullscreen"
+              style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+            />
+            {/* corner badge */}
+            <div className="absolute top-2 left-3 pointer-events-none">
+              <span className="font-mono text-[8px] tracking-widest uppercase px-2 py-0.5 rounded"
+                style={{ background: "rgba(0,0,0,0.65)", color: "rgba(0,210,230,0.8)", border: "1px solid rgba(0,210,230,0.2)" }}>
+                NASA EYES · LIVE · INTERACTIVE
+              </span>
+            </div>
+          </div>
+
+          {/* Asteroid selector sidebar — fixed height = full viewport minus header+footer chrome */}
+          {list.length > 0 && (
+            <div className="shrink-0 flex flex-col rounded-xl"
+              style={{
+                width: 196,
+                height: "calc(100vh - 180px)",
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid var(--border)",
+              }}>
+              <p className="font-mono text-[8px] tracking-widest uppercase px-3 py-2 shrink-0"
+                style={{ color: "var(--muted)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                Switch Target · {list.length} objects
+              </p>
+              {/* scrollable list — flex-1 fills everything below the header row */}
+              <div className="flex-1 overflow-y-auto scrollbar-thin flex flex-col gap-0.5 p-2" style={{ minHeight: 0 }}>
+              {list.map((a) => {
+                const isActive = (selected ?? activeAsteroid)?.name === a.name;
+                return (
+                  <button
+                    key={a.name}
+                    onClick={() => setSelected(a)}
+                    className="flex flex-col gap-0.5 px-2 py-2 rounded-lg text-left transition-all"
+                    style={{
+                      background: isActive ? "rgba(0,210,230,0.09)" : "transparent",
+                      border: isActive ? "1px solid rgba(0,210,230,0.25)" : "1px solid transparent",
+                    }}
+                  >
+                    <span className="font-mono text-[10px] font-semibold leading-snug"
+                      style={{ color: isActive ? "var(--cyan)" : "rgba(255,255,255,0.75)", wordBreak: "break-word" }}>
+                      {a.name}
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {a.is_potentially_hazardous && (
+                        <span className="font-mono text-[8px] font-bold" style={{ color: "var(--red)" }}>⬡ PHO</span>
+                      )}
+                      <span className="font-mono text-[8px]" style={{ color: "var(--muted)" }}>
+                        {a.miss_distance_km?.toLocaleString() ?? "—"} km
+                      </span>
+                      <span className="font-mono text-[8px]" style={{ color: "var(--muted)" }}>
+                        {a.close_approach_date}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Footer hint */}
+      <p className="font-mono text-[9px] shrink-0" style={{ color: "var(--muted)" }}>
+        Drag to rotate · Scroll to zoom · Source: NASA JPL Eyes on the Solar System (eyes.nasa.gov)
+      </p>
+    </div>
+  );
+}
+
 
 export default function Home() {
   const [query, setQuery]   = useState("");
@@ -195,7 +428,7 @@ export default function Home() {
     setExporting(true);
     try {
       const { exportBriefing } = await import("@/lib/exportPdf");
-      await exportBriefing(result, consoleLogs);
+      await exportBriefing(result, consoleLogs, lastForecaster, lastSentinel);
       toast.success("[OK] Mission Briefing exported successfully");
     } catch {
       toast.error("[WARN] Export failed — please try again");
@@ -204,18 +437,22 @@ export default function Home() {
     }
   }
 
-  // Accumulate last-seen data for both agents so the banner persists
+  // Accumulate last-seen data for all agents so panels persist
   // across intent switches (e.g. querying forecaster doesn't wipe sentinel)
   const [lastForecaster, setLastForecaster] = useState<ForecasterData | null>(null);
   const [lastSentinel,   setLastSentinel]   = useState<SentinelData   | null>(null);
+  const [lastArchivist,  setLastArchivist]  = useState<ArchivistData  | null>(null);
 
   useEffect(() => {
     if (result?.intent === "forecaster") setLastForecaster(result as ForecasterData);
     if (result?.intent === "sentinel")   setLastSentinel(result as SentinelData);
+    if (result?.intent === "archivist")  setLastArchivist(result as ArchivistData);
   }, [result]);
 
-  const forecasterData = lastForecaster;
-  const sentinelData   = lastSentinel;
+  const forecasterData    = lastForecaster;
+  const sentinelData      = lastSentinel;
+  const archivistData     = lastArchivist;
+  const archivistLoading  = loading && (!activeIntent || activeIntent === "archivist");
 
   return (
     <div className="h-screen flex flex-col" style={{ background: "var(--bg)" }}>
@@ -304,28 +541,8 @@ export default function Home() {
             style={{ color: "rgba(255,255,255,0.4)" }}>MET {met}</span>
         </div>
 
-        {/* ── Zone 4: Operator Clearance (sm+) ─────────────────────────── */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg shrink-0"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
-          }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-          {/* Full label on lg+, condensed on smaller */}
-          <span className="hidden lg:inline font-mono text-[10px]"
-            style={{ color: "rgba(255,255,255,0.4)" }}>OP‑ID:</span>
-          <span className="font-mono text-[10px] font-semibold"
-            style={{ color: "rgba(255,255,255,0.75)" }}>ADMIN‑01</span>
-          <span className="hidden sm:inline font-mono text-[10px]"
-            style={{ color: "rgba(255,255,255,0.2)" }}>|</span>
-          <span className="hidden sm:inline font-mono text-[10px]"
-            style={{ color: "rgba(255,255,255,0.4)" }}>CLEARANCE:</span>
-          <span className="font-mono text-[10px] font-bold tracking-widest"
-            style={{ color: "var(--amber)" }}>ALPHA</span>
-        </div>
+        {/* ── Zone 4: watsonx Gateway Monitor (md+) ────────────────────── */}
+        <WatsonxPing />
       </header>
 
       {/* ── Body (sidebar + main) ───────────────────────────────────────── */}
@@ -444,7 +661,7 @@ export default function Home() {
                 onSelectItem={openAsteroid}
               />
               <ForecasterPanel
-                data={result?.intent === "forecaster" ? (result as ForecasterData) : null}
+                data={result?.intent === "forecaster" ? (result as ForecasterData) : lastForecaster}
                 loading={loading && (!activeIntent || activeIntent === "forecaster")}
                 active={activeIntent === "forecaster" || activeIntent === null}
                 dimmed={activeIntent !== null && activeIntent !== "forecaster"}
@@ -461,7 +678,12 @@ export default function Home() {
 
           {/* ── Analytics / Threat & Risk view ─────────────────────────── */}
           {view === "analytics" && (
-            <AnalyticsView forecaster={forecasterData} exporting={exporting} />
+            <AnalyticsView
+              forecaster={forecasterData}
+              exporting={exporting}
+              archivist={archivistData}
+              archivistLoading={archivistLoading}
+            />
           )}
 
           {/* ── Constellation Fleet ─────────────────────────────────────── */}
@@ -472,6 +694,18 @@ export default function Home() {
 
           {/* ── Ground Relay Grid ───────────────────────────────────────── */}
           {view === "ground" && <GroundRelayGrid />}
+
+          {/* ── Orbit Viewer — full-page NASA Eyes embed ────────────────── */}
+          {view === "orbit" && (
+            <OrbitViewerPage
+              activeAsteroid={sentinelData?.items?.length
+                ? (sentinelData.items.find(a => a.is_potentially_hazardous) ??
+                   sentinelData.items.reduce((a, b) =>
+                     (a.miss_distance_km ?? Infinity) <= (b.miss_distance_km ?? Infinity) ? a : b))
+                : null}
+              allAsteroids={sentinelData?.items ?? []}
+            />
+          )}
 
         </main>
       </div>
