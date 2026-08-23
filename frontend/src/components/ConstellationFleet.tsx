@@ -3,13 +3,6 @@
 import { useEffect, useState } from "react";
 import type { SatellitesResponse, SatelliteRecord } from "@/app/api/satellites/route";
 
-const HEALTH_COLOR: Record<SatelliteRecord["health"], string> = {
-  NOMINAL:  "var(--emerald)",
-  DEGRADED: "var(--amber)",
-  CRITICAL: "#fb923c",
-  OFFLINE:  "var(--red)",
-};
-
 const BAND_COLOR: Record<SatelliteRecord["band"], string> = {
   LEO: "var(--cyan)",
   MEO: "var(--emerald)",
@@ -34,8 +27,8 @@ function BarCell({ value, max, color }: { value: number; max: number; color: str
 function SkeletonRow() {
   return (
     <div className="grid items-center px-4 py-2.5"
-      style={{ gridTemplateColumns: "1fr 60px 100px 80px 80px 80px", gap: 0 }}>
-      {[140, 40, 80, 60, 70, 60].map((w, i) => (
+      style={{ gridTemplateColumns: "1fr 60px 110px 80px 80px", gap: 0 }}>
+      {[140, 40, 80, 60, 70].map((w, i) => (
         <div key={i} className="animate-pulse rounded" style={{ height: 8, width: w, background: "rgba(255,255,255,0.06)", margin: "0 4px" }} />
       ))}
     </div>
@@ -122,7 +115,7 @@ export default function ConstellationFleet() {
         {/* Header */}
         <div className="grid font-mono text-[9px] tracking-widest uppercase px-4 py-2"
           style={{
-            gridTemplateColumns: "1fr 60px 110px 80px 80px 80px",
+            gridTemplateColumns: "1fr 60px 110px 80px 80px",
             color: "var(--muted)",
             borderBottom: "1px solid rgba(255,255,255,0.06)",
           }}>
@@ -131,7 +124,6 @@ export default function ConstellationFleet() {
           <span>Orbit (alt · inc)</span>
           <span>Period</span>
           <span>Altitude</span>
-          <span>Health</span>
         </div>
 
         {/* Skeleton while loading */}
@@ -143,7 +135,7 @@ export default function ConstellationFleet() {
             key={sat.norad_id}
             className="grid items-center px-4 py-2.5 font-mono text-[11px]"
             style={{
-              gridTemplateColumns: "1fr 60px 110px 80px 80px 80px",
+              gridTemplateColumns: "1fr 60px 110px 80px 80px",
               background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
               borderBottom: i < sats.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
             }}
@@ -172,14 +164,6 @@ export default function ConstellationFleet() {
 
             {/* Altitude bar */}
             <BarCell value={sat.altitude_km} max={36000} color={BAND_COLOR[sat.band]} />
-
-            {/* Health */}
-            <span className="text-[9px] font-bold tracking-widest"
-              style={{ color: HEALTH_COLOR[sat.health] }}>
-              {sat.health === "OFFLINE"  ? "● OFFLINE"   :
-               sat.health === "CRITICAL" ? "▲ CRITICAL"  :
-               sat.health === "DEGRADED" ? "◆ DEGRADED"  : "✓ NOMINAL"}
-            </span>
           </div>
         ))}
 
@@ -193,7 +177,7 @@ export default function ConstellationFleet() {
 
       <p className="text-[9px] font-mono" style={{ color: "var(--muted)" }}>
         Live orbital data from CelesTrak satcat API (celestrak.org) ·
-        Altitude = mean of apogee + perigee · Health from operational status code
+        Altitude = mean of apogee + perigee
       </p>
     </div>
   );
