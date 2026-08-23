@@ -426,7 +426,9 @@ export default function Home() {
     } finally {
       setLoading(false);
       // Give Supabase ~1 s to commit the row written by the agent route, then refresh
-      setTimeout(() => { logRefreshRef.current?.(); }, 1200);
+      // Refresh the log table — use a longer delay to ensure the DB write
+      // has fully committed before we read it back
+      setTimeout(() => { logRefreshRef.current?.(); }, 2500);
     }
   }
 
@@ -717,7 +719,7 @@ export default function Home() {
           {view === "fleet" && <ConstellationFleet />}
 
           {/* ── Mission Activity Log ────────────────────────────────────── */}
-          {view === "log" && <MissionActivityLog logs={consoleLogs} refreshRef={logRefreshRef} />}
+          {view === "log" && <MissionActivityLog logs={consoleLogs} refreshRef={logRefreshRef} key={view} />}
 
           {/* ── Ground Relay Grid ───────────────────────────────────────── */}
           {view === "ground" && <GroundRelayGrid />}
