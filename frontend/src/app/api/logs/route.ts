@@ -16,7 +16,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export interface LogsStats {
-  total_queries: number;
+  total_queries: number;   // full table count (not limited to current window)
   avg_latency_ms: number;
   total_tokens: number;
   error_count: number;
@@ -58,17 +58,28 @@ export async function GET(req: NextRequest) {
     const { createClient } = await import("@supabase/supabase-js");
     const sb = createClient(url, key, { auth: { persistSession: false } });
 
-    let query = sb
+    // Build filtered query for rows (paginated)
+    let rowQuery = sb
       .from("system_logs")
       .select("*")
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
+    // Build count query across the full table (ignores pagination)
+    let countQuery = sb
+      .from("system_logs")
+      .select("*", { count: "exact", head: true });
+
     if (agent && ["sentinel", "forecaster", "archivist", "error"].includes(agent)) {
-      query = query.eq("resolved_agent", agent);
+      rowQuery   = rowQuery.eq("resolved_agent", agent);
+      countQuery = countQuery.eq("resolved_agent", agent);
     }
 
-    const { data, error } = await query;
+    const [{ data, error }, { count: totalCount, error: countError }] =
+      await Promise.all([rowQuery, countQuery]);
+
+    // countError is non-fatal — we fall back to rows.length
+    if (countError) console.warn("[/api/logs] count query error:", countError.message);
 
     if (error) {
       // Table doesn't exist yet (PGRST200/PGRST204/42P01) → return empty, not 502
@@ -89,10 +100,10 @@ export async function GET(req: NextRequest) {
 
     const rows = (data ?? []) as SystemLogRow[];
 
-    // Aggregate stats over the fetched window
-    const total_queries  = rows.length;
-    const avg_latency_ms = total_queries > 0
-      ? Math.round(rows.reduce((s, r) => s + r.latency_ms, 0) / total_queries)
+    // total_queries = exact full-table count (or row window length as fallback)
+    const total_queries  = totalCount ?? rows.length;
+    const avg_latency_ms = rows.length > 0
+      ? Math.round(rows.reduce((s, r) => s + r.latency_ms, 0) / rows.length)
       : 0;
     const total_tokens  = rows.reduce((s, r) => s + r.token_usage, 0);
     const error_count   = rows.filter(r => r.status === "ERROR").length;

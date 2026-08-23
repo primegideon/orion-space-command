@@ -133,6 +133,7 @@ export default function MissionActivityLog({ logs, refreshRef }: Props) {
 
   // Stable fetch — never changes identity, always reads filterRef.current
   const fetchLogs = useCallback(async () => {
+    setLoading(true);
     const agent = filterRef.current;
     try {
       const params = new URLSearchParams({ limit: "100" });
@@ -214,11 +215,12 @@ export default function MissionActivityLog({ logs, refreshRef }: Props) {
           <button
             type="button"
             onClick={fetchLogs}
-            className="font-mono text-[8px] px-2.5 py-1 rounded-full transition-all duration-200 shrink-0 whitespace-nowrap"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--muted)" }}
+            disabled={loading}
+            className="font-mono text-[8px] px-2.5 py-1 rounded-full transition-all duration-200 shrink-0 whitespace-nowrap disabled:opacity-40"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: loading ? "var(--cyan)" : "var(--muted)" }}
             title="Refresh logs"
           >
-            ↻ Refresh
+            {loading ? "⟳ Syncing…" : "↻ Refresh"}
           </button>
         </div>
       </div>
@@ -339,8 +341,18 @@ ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;`}</pre>
             <span>Status</span>
           </div>
 
-          {/* Scrollable rows — max 600px */}
-          <div className="overflow-y-auto" style={{ maxHeight: 600 }}>
+          {/* Scrollable rows — max 600px, custom scrollbar matching system palette */}
+          <style>{`
+            .log-scroll::-webkit-scrollbar { width: 4px; }
+            .log-scroll::-webkit-scrollbar-track { background: transparent; }
+            .log-scroll::-webkit-scrollbar-thumb { background: rgba(0,210,230,0.2); border-radius: 2px; }
+            .log-scroll::-webkit-scrollbar-thumb:hover { background: rgba(0,210,230,0.4); }
+          `}</style>
+          <div className="log-scroll overflow-y-auto" style={{
+            maxHeight: 600,
+            scrollbarWidth: "thin",
+            scrollbarColor: "rgba(0,210,230,0.2) transparent",
+          }}>
             {rows.map((row, i) => (
               <div
                 key={row.id}
