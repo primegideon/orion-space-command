@@ -315,10 +315,11 @@ export default function Home() {
   const [statusOpen, setStatusOpen] = useState(false);
 
   // Voice command
-  const [listening, setListening] = useState(false);
+  const [listening,      setListening]      = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
-  const recognitionRef   = useRef<SpeechRecognitionInstance | null>(null);
-  const logRefreshRef    = useRef<(() => void) | null>(null);
+  const [voiceError,     setVoiceError]     = useState<string | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const logRefreshRef  = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     setVoiceSupported(
@@ -328,6 +329,7 @@ export default function Home() {
   }, []);
 
   function toggleVoice() {
+    setVoiceError(null);
     if (listening) {
       recognitionRef.current?.stop();
       setListening(false);
@@ -343,8 +345,17 @@ export default function Home() {
       const transcript = e.results[0]?.[0]?.transcript ?? "";
       if (transcript) setQuery(transcript);
     };
-    recognition.onerror = () => setListening(false);
-    recognition.onend   = () => setListening(false);
+    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
+      setListening(false);
+      if (e.error === "not-allowed") {
+        setVoiceError("Microphone access denied — allow mic permission in your browser and reload.");
+      } else if (e.error === "network") {
+        setVoiceError("Voice recognition needs an internet connection (Chrome sends audio to Google).");
+      } else {
+        setVoiceError(`Voice error: ${e.error}`);
+      }
+    };
+    recognition.onend = () => setListening(false);
     recognitionRef.current = recognition;
     recognition.start();
     setListening(true);
@@ -626,6 +637,13 @@ export default function Home() {
               ) : "Transmit"}
             </button>
           </div>
+
+          {/* Voice error */}
+          {voiceError && (
+            <p className="font-mono text-[10px] px-1" style={{ color: "var(--red)" }}>
+              ⚠ {voiceError}
+            </p>
+          )}
 
           {/* Error banner */}
           {error && (
