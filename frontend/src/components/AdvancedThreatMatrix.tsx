@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { ForecasterData } from "./ForecasterPanel";
 import type { SatelliteRecord, SatellitesResponse } from "@/app/api/satellites/route";
 import type { KpResponse } from "@/app/api/kp/route";
@@ -33,26 +33,6 @@ function SectionHeader({ title, sub }: { title: string; sub: string }) {
         {title}
       </p>
       <p className="text-[10px] font-mono mt-0.5" style={{ color: "var(--muted)" }}>{sub}</p>
-    </div>
-  );
-}
-
-function MiniBar({
-  label, value, max = 100, color, sub,
-}: { label: string; value: number; max?: number; color: string; sub?: string }) {
-  const pct = Math.min(100, (value / max) * 100);
-  return (
-    <div className="flex flex-col gap-1 mb-3">
-      <div className="flex justify-between items-baseline">
-        <span className="text-[10px] font-mono" style={{ color: "var(--foreground)", opacity: 0.8 }}>{label}</span>
-        <span className="text-[10px] font-mono font-bold" style={{ color }}>{value.toFixed(1)}{sub ?? ""}</span>
-      </div>
-      <div className="w-full rounded-full overflow-hidden" style={{ height: 4, background: "rgba(255,255,255,0.06)" }}>
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${pct}%`, background: color }}
-        />
-      </div>
     </div>
   );
 }

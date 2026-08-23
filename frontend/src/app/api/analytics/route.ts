@@ -120,6 +120,15 @@ function classifyKp(kp: number): AnalyticsMetrics["kpStatus"] {
 
 /* ── main handler ──────────────────────────────────────────────────────────*/
 export async function GET() {
+  try {
+  return await runAnalytics();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg, errors: [msg], metrics: null, flareChart: [], cmeChart: [], windowDays: 30 }, { status: 500 });
+  }
+}
+
+async function runAnalytics() {
   const WINDOW = 30;
   const endDate   = new Date();
   const startDate = daysAgo(WINDOW);
@@ -268,7 +277,7 @@ export async function GET() {
   try {
     const kpRes = await fetch(
       "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json",
-      { next: { revalidate: 180 }, headers: { "User-Agent": "ORION-SpaceCommand/2.0" } }
+      { cache: "no-store", headers: { "User-Agent": "ORION-SpaceCommand/2.0" } }
     );
     if (kpRes.ok) {
       const raw: unknown = await kpRes.json();

@@ -661,7 +661,7 @@ export default function Home() {
                 onSelectItem={openAsteroid}
               />
               <ForecasterPanel
-                data={result?.intent === "forecaster" ? (result as ForecasterData) : lastForecaster}
+                data={result?.intent === "forecaster" ? (result as ForecasterData) : null}
                 loading={loading && (!activeIntent || activeIntent === "forecaster")}
                 active={activeIntent === "forecaster" || activeIntent === null}
                 dimmed={activeIntent !== null && activeIntent !== "forecaster"}

@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       `https://api.nasa.gov/neo/rest/v1/feed` +
       `?start_date=${dateRange.start}&end_date=${dateRange.end}&api_key=${nasaKey}`;
 
-    const feedRes = await fetch(neowsUrl);
+    const feedRes = await fetch(neowsUrl, { cache: "no-store" });
     if (!feedRes.ok) {
       const errText = await feedRes.text();
       throw new Error(`NeoWs API returned ${feedRes.status}: ${errText}`);

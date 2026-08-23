@@ -146,7 +146,6 @@ function splitIntoStationBlocks(xml: string): Array<{ stationAttrs: Record<strin
 
   for (let i = 0; i < stations.length; i++) {
     const start = stations[i].index;
-    const end   = i + 1 < stations.length ? stations[i + 1].index - stations[i + 1].index + stations[i + 1].index - (stations[i + 1].attrs ? 0 : 0) : xml.length;
     // Slice from this station element to just before the next station element
     const nextStart = i + 1 < stations.length
       ? xml.lastIndexOf("<station", stations[i + 1].index)
