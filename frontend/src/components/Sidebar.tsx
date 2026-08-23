@@ -88,20 +88,6 @@ const NAV_ITEMS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
-const BOTTOM_UTILS = {
-  systemStatus: {
-    label: "System Status",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="3" width="20" height="14" rx="2" />
-        <path d="M8 21h8" />
-        <path d="M12 17v4" />
-        <path d="M7 8h.01M12 8h.01M17 8h.01" />
-      </svg>
-    ),
-  },
-};
-
 export default function Sidebar({ view, onView, onExportPdf, onSystemStatus, exporting }: Props) {
   const [expanded, setExpanded] = useState(true);
 
@@ -254,7 +240,14 @@ export default function Sidebar({ view, onView, onExportPdf, onSystemStatus, exp
           (e.currentTarget as HTMLElement).style.background = "rgba(52,211,153,0.07)";
         }}
       >
-        <span className="shrink-0">{BOTTOM_UTILS.systemStatus.icon}</span>
+        <span className="shrink-0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <path d="M8 21h8" />
+            <path d="M12 17v4" />
+            <path d="M7 8h.01M12 8h.01M17 8h.01" />
+          </svg>
+        </span>
         <span
           className="text-[10px] font-mono font-medium tracking-wide whitespace-nowrap overflow-hidden"
           style={{

@@ -166,14 +166,8 @@ export default function MissionActivityLog({ logs, refreshRef }: Props) {
     if (refreshRef) refreshRef.current = fetchLogs;
   }, [fetchLogs, refreshRef]);
 
-  // Re-fetch whenever the filter changes
+  // Fetch on mount + whenever the filter changes — no auto-polling
   useEffect(() => { fetchLogs(); }, [agentFilter, fetchLogs]);
-
-  // Poll every 30 s — single interval, never re-created
-  useEffect(() => {
-    const id = setInterval(fetchLogs, 30_000);
-    return () => clearInterval(id);
-  }, [fetchLogs]);
 
   const stats: LogsStats = data?.stats ?? {
     total_queries: 0, avg_latency_ms: 0,

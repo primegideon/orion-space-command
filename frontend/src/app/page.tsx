@@ -572,7 +572,13 @@ export default function Home() {
         />
 
         {/* Main content */}
-        <main className="flex-1 flex flex-col gap-5 px-5 py-5 max-w-screen-xl w-full mx-auto pb-16 min-h-0 overflow-y-auto">
+        <style>{`
+          .main-scroll::-webkit-scrollbar { width: 4px; }
+          .main-scroll::-webkit-scrollbar-track { background: transparent; }
+          .main-scroll::-webkit-scrollbar-thumb { background: rgba(0,210,230,0.2); border-radius: 2px; }
+          .main-scroll::-webkit-scrollbar-thumb:hover { background: rgba(0,210,230,0.4); }
+        `}</style>
+        <main className="main-scroll flex-1 flex flex-col gap-5 px-5 py-5 max-w-screen-xl w-full mx-auto pb-16 min-h-0 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(0,210,230,0.2) transparent" }}>
 
           {/* Query bar */}
           <div

@@ -130,6 +130,11 @@ function keywordRoute(q: string): string | null {
   return null;
 }
 
+/** HEAD /api/agent — lightweight connectivity check for the WatsonxPing component */
+export async function HEAD() {
+  return new Response(null, { status: 200 });
+}
+
 export async function POST(req: NextRequest) {
   const routeStart = Date.now();
 
