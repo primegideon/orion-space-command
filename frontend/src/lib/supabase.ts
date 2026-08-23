@@ -61,7 +61,9 @@ export async function insertLog(params: InsertLogParams): Promise<void> {
       console.error("[system_logs] insert skipped — SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL not set");
       return;
     }
-    const sb = getSupabaseAdmin();
+    // Always create a fresh client — avoids stale singleton issues on serverless
+    const { createClient } = await import("@supabase/supabase-js");
+    const sb = createClient(url, key, { auth: { persistSession: false } });
     const { error } = await sb.from("system_logs").insert({
       query_string:   params.query_string,
       resolved_agent: params.resolved_agent,
@@ -71,7 +73,9 @@ export async function insertLog(params: InsertLogParams): Promise<void> {
       error_message:  params.error_message ?? null,
     });
     if (error) {
-      console.error("[system_logs] insert error:", error.message);
+      console.error("[system_logs] insert error:", error.message, error.code, error.details);
+    } else {
+      console.log("[system_logs] insert OK — agent:", params.resolved_agent, "latency:", params.latency_ms);
     }
   } catch (err) {
     console.error("[system_logs] unexpected error:", err);
