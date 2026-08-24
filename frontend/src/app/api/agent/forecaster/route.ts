@@ -12,6 +12,7 @@ import type { ForecasterData, FlareItem } from "@/components/ForecasterPanel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /* ── NASA DONKI types (partial) ──────────────────────────────────────────── */
 interface DonkiFlare {

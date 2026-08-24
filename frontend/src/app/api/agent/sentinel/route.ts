@@ -12,6 +12,7 @@ import type { SentinelData, AsteroidItem } from "@/components/SentinelPanel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /* ── NASA NeoWs types (partial) ──────────────────────────────────────────── */
 interface NeoEstimatedDiameter {

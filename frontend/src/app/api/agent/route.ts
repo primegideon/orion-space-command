@@ -12,6 +12,7 @@ import { insertLog } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const ROUTING_PROMPT = (query: string) => `\
 You are a query router for ORION Space Command. Route the query to exactly one of three agents.

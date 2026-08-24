@@ -13,6 +13,7 @@ import type { ArchivistData } from "@/components/ArchivistPanel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /* ── Supabase RPC response shape ─────────────────────────────────────────── */
 interface EmbeddingMatch {
