@@ -119,7 +119,7 @@ sequenceDiagram
         Sentinel->>NeoWs: GET /neo/rest/v1/feed (7-day)
         NeoWs-->>Sentinel: NEO JSON
         Sentinel->>Synth: Summarise asteroid data
-        Synth-->>UI: SentinelData + 3D orbital canvas
+        Synth-->>UI: SentinelData + AI Threat Summary
     else intent = forecaster
         Router->>Forecaster: POST { query }
         Forecaster->>DONKI: GET /DONKI/FLR (30-day)
@@ -163,12 +163,13 @@ arXiv PDFs (./data/pdfs/)
   +-> IBM Docling DocumentConverter -> structured markdown
         +-> 512-token chunks with 64-token overlap
               +-> sentence-transformers/all-MiniLM-L6-v2 embeddings
-                    +-> Chroma PersistentClient (./data/chroma_db/)
+                    +-> Chroma PersistentClient (./data/chroma_db/)   [V1 local]
+                    +-> Supabase pgvector via migrate_to_supabase.py  [V2 cloud]
 ```
 
 ### Structured Response Contract
 
-Every Langflow flow returns a consistent JSON envelope regardless of success or error:
+Every V2 sub-agent route handler returns a consistent JSON envelope regardless of success or error:
 
 ```json
 {
@@ -192,7 +193,7 @@ The architectural vision was established up front: three specialist agents, IBM 
 
 **Specific contributions where IBM Bob was the primary tool:**
 
-- **Next.js Frontend Scaffolding.** The full dashboard layout, all five panel components (`SentinelPanel`, `ForecasterPanel`, `ArchivistPanel`, `TelemetryConsole`, `DetailPanel`), loading skeletons, idle state animations (radar sweep, waveform pulse, document scan), and the glassmorphic dark-space Tailwind theme were prototyped iteratively with Bob. The complete UI — including the telemetry console and slide-out detail drawer — was assembled in a single extended session.
+- **Next.js Frontend Scaffolding.** The full dashboard layout, all 17 components (`SentinelPanel`, `ForecasterPanel`, `ArchivistPanel`, `AnalyticsView`, `AdvancedThreatMatrix`, `ConstellationFleet`, `MissionActivityLog`, `GroundRelayGrid`, `KpStatusBanner`, `MitigationBanner`, `RiskMatrix`, `OrbitalCanvas`, `FlareChart`, `DetailPanel`, `Sidebar`, `SystemStatusModal`, `TelemetryConsole`), loading skeletons, idle state animations (radar sweep, waveform pulse, document scan), and the glassmorphic dark-space Tailwind theme were prototyped iteratively with Bob. The complete UI — including the telemetry console, slide-out detail drawer, navigation rail, and six distinct views — was assembled across extended sessions.
 
 - **Langflow Async Stream Debugging (V1).** Resolving the async conflict between Langflow's LLM nodes and custom Python components required understanding both the Langflow 1.11 internal component lifecycle and the Next.js server-side fetch model. IBM Bob diagnosed the root cause, identified the correct `outputs[0].outputs[0].results.message.text` extraction path in the Langflow response envelope, and rebuilt the two-phase routing architecture with a JSON repair fallback.
 
@@ -257,6 +258,8 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
+> **Note:** `.env.example` contains the complete list of required variables. There are no Langflow or ngrok variables in V2 — those were V1 only.
+
 ### 4. Set up Supabase (one-time)
 
 1. Create a project at **https://supabase.com**
@@ -306,35 +309,61 @@ Dashboard available at **http://localhost:3000**.
 
 ```
 orion-space-command/
-+-- assets/
++-- assets/                              # Screenshots and project logo
 |   +-- orion-animated-logo.svg          # Project logo (SVG, animated)
 +-- frontend/                            # Next.js 14 app (TypeScript + Tailwind CSS)
 |   +-- src/app/
-|   |   +-- page.tsx                     # Main dashboard page
+|   |   +-- page.tsx                     # Main dashboard page + view router
+|   |   +-- layout.tsx                   # Root layout + global fonts
+|   |   +-- globals.css                  # Tailwind base + CSS custom properties
 |   |   +-- api/agent/
-|   |   |   +-- route.ts                 # Master intent router (watsonx)
+|   |   |   +-- route.ts                 # Master intent router (keyword + watsonx)
 |   |   |   +-- sentinel/route.ts        # NeoWs fetch + watsonx summary
 |   |   |   +-- forecaster/route.ts      # DONKI fetch + watsonx summary
 |   |   |   +-- archivist/route.ts       # Supabase pgvector RAG
+|   |   +-- api/analytics/route.ts       # 30-day flare/CME/NEO analytics aggregator
+|   |   +-- api/donki/route.ts           # Live NOAA DONKI flare + R-Scale feed
+|   |   +-- api/dsn/route.ts             # NASA Deep Space Network XML parser
+|   |   +-- api/kp/route.ts              # NOAA SWPC planetary Kp-index feed
+|   |   +-- api/logs/route.ts            # Supabase system_logs reader
+|   |   +-- api/satellites/route.ts      # CelesTrak satcat orbital parameters
 |   +-- src/components/
-|   |   +-- SentinelPanel.tsx            # Asteroid table + 3D orbital canvas
+|   |   +-- SentinelPanel.tsx            # Asteroid table + AI threat summary
 |   |   +-- ForecasterPanel.tsx          # Flare cards + Recharts charts
 |   |   +-- ArchivistPanel.tsx           # RAG answer + source citations
-|   |   +-- OrbitalCanvas.tsx            # Three.js / R3F orbital scene
-|   |   +-- FlareChart.tsx               # Recharts solar weather charts
-|   |   +-- TelemetryConsole.tsx         # Live telemetry log console
-|   |   +-- DetailPanel.tsx              # Slide-out item detail drawer
+|   |   +-- AnalyticsView.tsx            # 30-day historical charts + protocol cards
+|   |   +-- AdvancedThreatMatrix.tsx     # Orbital debris, spectrum & compliance modules
+|   |   +-- ConstellationFleet.tsx       # Live CelesTrak satellite fleet table
+|   |   +-- MissionActivityLog.tsx       # Supabase query audit log + routing stats
+|   |   +-- GroundRelayGrid.tsx          # NASA DSN world map + station table
+|   |   +-- KpStatusBanner.tsx           # Live NOAA Kp status banner
+|   |   +-- MitigationBanner.tsx         # Auto-triggered flare/PHO alert banner
+|   |   +-- RiskMatrix.tsx               # Flare-driven sat-comms/power/radiation bars
+|   |   +-- OrbitalCanvas.tsx            # Three.js / R3F asteroid trajectory scene
+|   |   +-- FlareChart.tsx               # Recharts solar weather time-series charts
+|   |   +-- DetailPanel.tsx              # Slide-out asteroid / flare detail drawer
+|   |   +-- Sidebar.tsx                  # Navigation rail + utility buttons
+|   |   +-- SystemStatusModal.tsx        # API dependency health modal
+|   |   +-- TelemetryConsole.tsx         # Live session telemetry log console
 |   +-- src/lib/
 |   |   +-- watsonx.ts                   # IAM token cache + generateText + generateEmbedding
-|   +-- next.config.js                   # transpilePackages for Three.js
+|   |   +-- supabase.ts                  # Supabase admin client (service-role)
+|   |   +-- exportPdf.ts                 # Client-side PDF mission briefing generator
 +-- langflow/                            # V1 flows (archived for reference)
 |   +-- flows/
 |   +-- components/                      # V1 custom Python components
 +-- scripts/
 |   +-- supabase_schema.sql              # pgvector schema + match_embeddings RPC
-|   +-- migrate_to_supabase.py           # One-time Chroma to Supabase migration
-|   +-- ingest_pdfs.py                   # One-time Docling to Chroma ingestion
+|   +-- migrate_to_supabase.py           # One-time Chroma → Supabase migration
+|   +-- ingest_pdfs.py                   # One-time Docling → Chroma ingestion (V1)
+|   +-- download_pdfs.py                 # arXiv PDF bulk downloader
 |   +-- test_model_candidates.py         # watsonx model benchmarking
+|   +-- test_watsonx.py                  # watsonx connectivity test
+|   +-- test_nasa_apis.py                # NASA API connectivity test
+|   +-- test_langflow.py                 # V1 Langflow integration test
+|   +-- _gen_flows.py                    # V1 flow scaffolding helper
+|   +-- _verify_chroma.py                # V1 Chroma vector store verifier
+|   +-- _verify_flows.py                 # V1 Langflow flow verifier
 +-- data/
 |   +-- pdfs/                            # arXiv source PDFs
 |   +-- chroma_db/                       # Local Chroma vector store (V1)
@@ -363,17 +392,18 @@ Click the `‹` chevron to expand or collapse the sidebar at any time.
 
 | View | Icon | Description |
 |------|------|-------------|
-| **Telemetry Core** | Signal waves | The primary live-fire dashboard featuring the Sentinel (NEO tracking + orbital diagram), Forecaster (solar weather + risk model), and Archivist (RAG research database). |
-| **Threat & Risk** | Star shield | Toggles between 90-day historical data charts and a simulated live heuristic analysis of orbital debris drag, cybersecurity/spectrum integrity, and international data compliance. |
-| **Constellation** | Globe/orbit | A fleet overview monitoring orbital bands, battery health (%), solar power output, signal strength (dBm), and operational health of all tracked satellites. |
-| **Mission Log** | Document | An audit trail of recent LLM queries showing agent routing decisions, end-to-end latency, token usage, and the live telemetry log from the current session. |
+| **Telemetry Core** | Signal waves | The primary live-fire dashboard featuring the Sentinel (NEO tracking), Forecaster (solar weather + risk model), and Archivist (RAG research database). |
+| **Threat & Risk** | Star shield | Toggles between 30-day historical data charts and a live heuristic analysis of orbital debris drag, cybersecurity/spectrum integrity, and international data compliance. |
+| **Constellation** | Globe/orbit | A fleet overview monitoring orbital bands, Altitude (km), Inclination (degrees), Orbital Period (minutes), and Orbital Band (LEO/MEO/GEO) of all tracked satellites. |
+| **Mission Log** | Document | An audit trail of recent LLM queries showing agent routing decisions, end-to-end latency, live Routing Success Rate, and the live telemetry log from the current session. |
 | **Ground Relay** | Antenna | An equirectangular world map and status table showing real-time uplink/downlink status, data rates, elevation angles, and next contact windows for global Deep Space Network (DSN) nodes. |
+| **Orbit Viewer** | Orbit rings | A dual-purpose situational awareness hub featuring an interactive NASA Eyes 3D macro-visualization and a secure routing bridge to the JPL Small-Body Database for micro-level threat verification. |
 
 **Utilities (Bottom of Sidebar)**
 
 | Button | Description |
 |--------|-------------|
-| **System Status** | Opens a modal that live-probes all six API dependencies (NASA NeoWs, DONKI, Supabase, IBM watsonx, IAM, Docling) and reports latency and uptime. |
+| **System Status** | Opens a modal that simulates latency probes against all six API dependencies (NASA NeoWs, DONKI, Supabase, IBM watsonx, IAM, Docling) and reports heuristic latency and uptime. |
 | **Export PDF** | Generates a client-side PDF mission briefing including mission timestamp, active threat status, satellite insurance risk assessment, and the full telemetry log from the current session. When clicked, the Data Compliance Gateway in the Threat Matrix view animates through its regulatory verification sequence. |
 
 **Mitigation Banner**
@@ -385,50 +415,65 @@ When a live query returns an X-class or M5+ solar flare, or a PHO asteroid appro
 
 ### Telemetry Core — Live Agent Dashboard
 <p align="center">
-  <img src="./assets/01-telemetry-core.png" alt="Telemetry Core — Live Dashboard" width="90%">
-  <br/><em>The primary command view: Sentinel asteroid tracker, Forecaster solar weather, and Archivist RAG panel side-by-side with live orbital diagram.</em>
+<img src="./assets/01-telemetry-core.png" alt="Telemetry Core — Live Dashboard" width="90%">
+<br/>
+<em>The primary command view: Sentinel asteroid tracker, Forecaster solar weather, and Archivist RAG panel side-by-side.</em>
 </p>
 
-### Historical Analytics — 90-Day Solar Data
+### Historical Analytics — 30-Day Flare Frequency
 <p align="center">
-  <img src="./assets/02-historical-analytics.png" alt="Historical Analytics View" width="90%">
-  <br/><em>90-day flare frequency line chart, risk radar (current vs average), and CME propagation speed bars with standard mitigation protocol cards.</em>
+<img src="./assets/02-historical-analytics.png" alt="Historical Analytics View" width="90%">
+<br/>
+<em>30-day flare frequency line chart and multi-axis live risk radar comparing current telemetry against historical baselines.</em>
+</p>
+
+### Threat Posture — CME & Mitigation Protocols
+<p align="center">
+<img src="./assets/02b-cme-mitigation.png" alt="CME Mitigation Protocols" width="90%">
+<br/>
+<em>30-day CME propagation speed bar chart and automated rule-based hardware mitigation protocol triggers.</em>
 </p>
 
 ### Advanced Threat Matrix
 <p align="center">
-  <img src="./assets/03-threat-matrix.png" alt="Advanced Threat Matrix" width="90%">
-  <br/><em>Three-module heuristic analysis: Orbital Debris & Drag (driven by live flare data), Cybersecurity & Spectrum monitor, and Data Compliance Gateway.</em>
+<img src="./assets/03-threat-matrix.png" alt="Advanced Threat Matrix" width="90%">
+<br/>
+<em>Three-module heuristic analysis: Orbital Debris & Drag (driven by live CelesTrak + Kp data), Cybersecurity & Spectrum monitor, and Data Compliance Gateway.</em>
 </p>
 
 ### Constellation Fleet
 <p align="center">
-  <img src="./assets/04-constellation-fleet.png" alt="Constellation Fleet View" width="90%">
-  <br/><em>Full fleet telemetry table across LEO/MEO/GEO/HEO orbital bands with battery, solar output, signal strength, and health status per satellite.</em>
+<img src="./assets/04-constellation-fleet.png" alt="Constellation Fleet View" width="90%">
+<br/>
+<em>Full fleet telemetry table across LEO/MEO/GEO/HEO orbital bands with Altitude (km), Inclination (degrees), Orbital Period (minutes), and Orbital Band (LEO/MEO/GEO) per satellite — sourced live from CelesTrak.</em>
 </p>
 
 ### Mission Activity Log
 <p align="center">
-  <img src="./assets/05-mission-log.png" alt="Mission Activity Log" width="90%">
-  <br/><em>Audit trail of recent watsonx queries with agent routing history, latency metrics, token usage, and live current-session console output.</em>
+<img src="./assets/05-mission-log.jpg" alt="Mission Activity Log" width="90%">
+<br/>
+<em>Audit trail of recent watsonx queries with agent routing history, latency metrics, live Routing Success Rate, and live current-session console output.</em>
 </p>
 
 ### Ground Relay Grid — World Map
 <p align="center">
-  <img src="./assets/06-ground-relay-map.png" alt="Ground Relay Map" width="90%">
-  <br/><em>Equirectangular projection of global ground station coverage. Pulsing rings indicate active uplink/downlink nodes.</em>
+<img src="./assets/06-ground-relay-map.png" alt="Ground Relay Map" width="90%">
+<br/>
+<em>Equirectangular projection of global ground station coverage. Pulsing rings indicate active uplink/downlink nodes.</em>
 </p>
 
 ### Ground Relay Grid — Station Table
 <p align="center">
-  <img src="./assets/07-ground-relay-table.png" alt="Ground Relay Table" width="90%">
-  <br/><em>DSN/ESA/JAXA/ISRO/SSC/KSAT station status table with live data rates, elevation angles, frequency bands, and next contact windows.</em>
+<img src="./assets/07-ground-relay-table.png" alt="Ground Relay Table" width="90%">
+<br/>
+<em>DSN/ESA/JAXA/ISRO/SSC/KSAT station status table with live data rates, elevation angles, frequency bands, and next contact windows.</em>
 </p>
 
-### System Status Modal
+### Orbit Viewer — Situational Awareness
 <p align="center">
-  <img src="./assets/08-system-status.png" alt="System Status Modal" width="60%">
-  <br/><em>Live dependency health modal — probes all six API services on open and reports latency and uptime per service.</em>
+<img src="./assets/08-orbit-viewer.jpg" alt="Orbit Viewer" width="90%">
+<br/>
+<em>Standalone 3D solar system macro-visualization paired with a secure data bridge to the JPL Small-Body Database for threat verification.</em>
 </p>
 
 ---

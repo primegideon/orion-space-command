@@ -115,13 +115,7 @@ export async function POST(req: NextRequest) {
     const body: unknown = await req.json();
     const query = (body as Record<string, unknown>)?.query ?? "show solar weather";
 
-    const nasaKey = process.env.NASA_API_KEY;
-    if (!nasaKey) {
-      return NextResponse.json<ForecasterData>(
-        { agent: "forecaster", items: [], count: 0, summary: "NASA_API_KEY is not configured.", error: "NASA_API_KEY missing" },
-        { status: 500 }
-      );
-    }
+    const nasaKey = process.env.NASA_API_KEY ?? "DEMO_KEY";
 
     // 30-day lookback
     const end = new Date();
@@ -129,14 +123,44 @@ export async function POST(req: NextRequest) {
     start.setDate(start.getDate() - 30);
     const period = { start: dateStr(start), end: dateStr(end) };
 
-    const donkiUrl =
-      `https://api.nasa.gov/DONKI/FLR` +
-      `?startDate=${period.start}&endDate=${period.end}&api_key=${nasaKey}`;
+    // Race both endpoints simultaneously — whichever responds first wins.
+    // 8s timeout total; if both fail we degrade gracefully.
+    const endpoints = [
+      `https://api.nasa.gov/DONKI/FLR?startDate=${period.start}&endDate=${period.end}&api_key=${nasaKey}`,
+      `https://kauai.ccmc.gsfc.nasa.gov/DONKI/WS/get/FLR?startDate=${period.start}&endDate=${period.end}`,
+    ];
 
-    const flrRes = await fetch(donkiUrl, { cache: "no-store" });
-    if (!flrRes.ok) {
-      const errText = await flrRes.text();
-      throw new Error(`DONKI API returned ${flrRes.status}: ${errText}`);
+    let flrRes: Response | null = null;
+    let lastErr = "DONKI unreachable";
+
+    const results = await Promise.allSettled(
+      endpoints.map(url =>
+        fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8_000) })
+      )
+    );
+
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value.ok) {
+        flrRes = result.value;
+        break;
+      }
+      if (result.status === "rejected") {
+        lastErr = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      } else if (!result.value.ok) {
+        lastErr = `DONKI returned ${result.value.status}`;
+      }
+    }
+
+    if (!flrRes) {
+      // Both endpoints unreachable — return graceful degraded response
+      return NextResponse.json<ForecasterData>({
+        agent: "forecaster",
+        items: [],
+        count: 0,
+        summary: "NASA DONKI solar weather data is temporarily unavailable. Please try again shortly.",
+        error: lastErr,
+        period,
+      });
     }
 
     // DONKI returns null for quiet periods — normalise to empty array

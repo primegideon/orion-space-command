@@ -140,7 +140,7 @@ export default function ForecasterPanel({ data, loading, active, dimmed, onSelec
         </span>
       </div>
 
-      {/* Tab toggle — only shown when data is loaded */}
+      {/* Tab toggle — only shown when data is loaded with no error */}
       {!loading && data && !data.error && (
         <div className="shrink-0 mb-3">
           <TabToggle active={tab} onChange={setTab} />
@@ -159,9 +159,16 @@ export default function ForecasterPanel({ data, loading, active, dimmed, onSelec
           </div>
         )}
 
-        {/* Error */}
+        {/* Degraded / error state — show summary if present, raw error as footnote */}
         {!loading && data?.error && (
-          <p className="text-[var(--red)] text-xs font-mono">{data.error}</p>
+          <div className="flex flex-col gap-2 animate-fade-in">
+            <p className="text-[13px] leading-relaxed" style={{ color: "#a0c4d8" }}>
+              {data.summary || "Solar weather data is temporarily unavailable. Please try again shortly."}
+            </p>
+            <p className="text-[10px] font-mono" style={{ color: "var(--muted)" }}>
+              ⚠ {data.error}
+            </p>
+          </div>
         )}
 
         {/* Idle */}
