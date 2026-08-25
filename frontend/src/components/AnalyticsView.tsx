@@ -30,11 +30,7 @@ const TOOLTIP_STYLE = {
 };
 
 /* ── Tabs ─────────────────────────────────────────────────────────────────*/
-const TABS = [
-  { id: "historical", label: "Historical" },
-  { id: "threat",     label: "Threat Matrix" },
-] as const;
-type TabId = typeof TABS[number]["id"];
+type TabId = "historical" | "threat";
 
 /* ── Mitigation protocol definitions ─────────────────────────────────────*/
 interface Protocol {
