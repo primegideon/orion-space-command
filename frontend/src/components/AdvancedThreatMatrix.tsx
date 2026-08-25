@@ -604,7 +604,7 @@ function ComplianceGatewayModule({
   const isIdle      = !archivistLoading && !archivist;
 
   return (
-    <div className="glass rounded-xl p-4 flex flex-col gap-2" style={{ minHeight: 280 }}>
+    <div className="glass rounded-xl p-4 flex flex-col gap-3 h-full">
       <SectionHeader
         title="Data Compliance Gateway"
         sub="IBM Docling · Supabase pgvector · watsonx RAG monitor"
@@ -612,22 +612,24 @@ function ComplianceGatewayModule({
 
       {/* ── Idle state ────────────────────────────────────────────────── */}
       {isIdle && (
-        <div className="flex flex-col items-center justify-center flex-1 gap-3 py-6">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted)"
-            strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity={0.4}>
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
-          </svg>
-          <p className="font-mono text-[10px] text-center" style={{ color: "var(--muted)" }}>
-            Run an Archivist query to activate the<br/>compliance RAG pipeline
-          </p>
-          <div className="flex flex-col gap-1 w-full mt-2">
+        <div className="flex flex-col flex-1 gap-2">
+          <div className="flex items-center gap-2 mb-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+              <path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>
+            <span className="font-mono text-[9px] tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.2)" }}>
+              Awaiting query
+            </span>
+          </div>
+          <div className="flex flex-col flex-1 gap-2">
             {PIPELINE_STAGES.map((s) => (
-              <div key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg"
-                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "rgba(255,255,255,0.12)" }} />
-                <span className="font-mono text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>{s.label}</span>
+              <div key={s.id} className="flex items-center gap-3 px-3 rounded-lg flex-1"
+                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", minHeight: 44 }}>
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "rgba(255,255,255,0.1)" }} />
+                <span className="font-mono text-[9px]" style={{ color: "rgba(255,255,255,0.25)" }}>{s.label}</span>
+                <span className="ml-auto font-mono text-[8px]" style={{ color: "rgba(255,255,255,0.1)" }}>—</span>
               </div>
             ))}
           </div>
@@ -636,98 +638,103 @@ function ComplianceGatewayModule({
 
       {/* ── Loading — animate pipeline stages ─────────────────────────── */}
       {archivistLoading && (
-        <div className="flex flex-col gap-1.5 mt-1">
+        <div className="flex flex-col flex-1 gap-2">
           {PIPELINE_STAGES.map((s, i) => {
             const done    = i < stageIdx;
             const active  = i === stageIdx;
-            const pending = i > stageIdx;
             const col = done ? "var(--emerald)" : active ? "var(--cyan)" : "rgba(255,255,255,0.2)";
             return (
-              <div key={s.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-300`}
+              <div key={s.id} className="flex items-center gap-3 px-3 rounded-lg flex-1 transition-all duration-300"
                 style={{
                   background: active ? "rgba(0,210,230,0.06)" : "rgba(255,255,255,0.02)",
                   border: `1px solid ${active ? "rgba(0,210,230,0.25)" : "rgba(255,255,255,0.05)"}`,
+                  minHeight: 44,
                 }}>
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0${active ? " animate-pulse" : ""}`}
                   style={{ background: col }} />
-                <span className="font-mono text-[9px] flex-1" style={{ color: col }}>
-                  {s.label}
-                </span>
-                {done && (
-                  <span className="font-mono text-[8px] font-bold" style={{ color: "var(--emerald)" }}>✓</span>
-                )}
-                {active && (
-                  <span className="font-mono text-[8px] animate-pulse" style={{ color: "var(--cyan)" }}>…</span>
-                )}
-                {pending && (
-                  <span className="font-mono text-[8px]" style={{ color: "rgba(255,255,255,0.2)" }}>—</span>
-                )}
+                <span className="font-mono text-[9px] flex-1" style={{ color: col }}>{s.label}</span>
+                {done   && <span className="font-mono text-[8px] font-bold" style={{ color: "var(--emerald)" }}>✓</span>}
+                {active && <span className="font-mono text-[8px] animate-pulse" style={{ color: "var(--cyan)" }}>…</span>}
+                {!done && !active && <span className="font-mono text-[8px]" style={{ color: "rgba(255,255,255,0.2)" }}>—</span>}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* ── Result — RAG verdict ──────────────────────────────────────── */}
+      {/* ── Result ────────────────────────────────────────────────────── */}
       {hasResult && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col flex-1 gap-2">
 
-          {/* All stages complete */}
-          <div className="flex flex-col gap-1">
+          {/* Pipeline stages — all complete */}
+          <div className="flex flex-col gap-1.5">
             {PIPELINE_STAGES.map((s) => (
-              <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                style={{ background: "rgba(52,211,153,0.04)", border: "1px solid rgba(52,211,153,0.12)" }}>
+              <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg"
+                style={{ background: "rgba(52,211,153,0.04)", border: "1px solid rgba(52,211,153,0.1)" }}>
                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--emerald)" }} />
-                <span className="font-mono text-[9px]" style={{ color: "rgba(255,255,255,0.55)" }}>{s.label}</span>
-                <span className="font-mono text-[8px] ml-auto font-bold" style={{ color: "var(--emerald)" }}>✓</span>
+                <span className="font-mono text-[9px] flex-1" style={{ color: "rgba(255,255,255,0.5)" }}>{s.label}</span>
+                <span className="font-mono text-[8px] font-bold" style={{ color: "var(--emerald)" }}>✓</span>
               </div>
             ))}
           </div>
 
-          {/* Confidence score */}
+          {/* Divider */}
+          <div className="h-px shrink-0" style={{ background: "rgba(255,255,255,0.05)" }} />
+
+          {/* Confidence — full-width bar card like solar wind rows */}
           {confPct !== null && !hasError && (
-            <div className="flex items-center justify-between px-3 py-2 rounded-lg mt-1"
-              style={{ background: `${confColor}0d`, border: `1px solid ${confColor}33` }}>
-              <div className="flex flex-col">
-                <span className="font-mono text-[9px] tracking-widest uppercase" style={{ color: "var(--muted)" }}>
-                  Vector Retrieval Confidence
-                </span>
-                <span className="font-mono text-[18px] font-bold tabular-nums leading-tight" style={{ color: confColor }}>
-                  {confPct}%
-                </span>
+            <div className="flex flex-col gap-2 px-3 py-3 rounded-lg flex-1"
+              style={{ background: `${confColor}08`, border: `1px solid ${confColor}22` }}>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="font-mono text-[8px] tracking-widest uppercase" style={{ color: "var(--muted)" }}>
+                    Vector Retrieval Confidence
+                  </span>
+                  <span className="font-mono text-[22px] font-bold tabular-nums leading-tight" style={{ color: confColor }}>
+                    {confPct}%
+                  </span>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge label={`${conf?.toUpperCase()} confidence`} color={confColor} />
+                  <span className="font-mono text-[8px]" style={{ color: "var(--muted)" }}>
+                    {archivist.sources?.length ?? 0} source{(archivist.sources?.length ?? 0) !== 1 ? "s" : ""} retrieved
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col items-end gap-0.5">
-                <Badge label={`${conf?.toUpperCase()} confidence`} color={confColor} />
-                <span className="font-mono text-[8px]" style={{ color: "var(--muted)" }}>
-                  {archivist.sources?.length ?? 0} source{(archivist.sources?.length ?? 0) !== 1 ? "s" : ""} retrieved
-                </span>
+              {/* Confidence bar */}
+              <div className="w-full rounded-full overflow-hidden" style={{ height: 4, background: "rgba(255,255,255,0.06)" }}>
+                <div className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${confPct}%`, background: confColor }} />
               </div>
             </div>
           )}
 
-          {/* Sources */}
+          {/* Sources — each on its own row like satellite cards */}
           {(archivist.sources?.length ?? 0) > 0 && !hasError && (
-            <div className="flex flex-col gap-0.5">
-              <span className="font-mono text-[8px] tracking-widest uppercase px-1" style={{ color: "var(--muted)" }}>
-                Retrieved sources
+            <div className="flex flex-col gap-1.5 flex-1">
+              <span className="font-mono text-[8px] tracking-widest uppercase shrink-0" style={{ color: "var(--muted)" }}>
+                Retrieved Sources
               </span>
-              {archivist.sources!.slice(0, 4).map((src, i) => (
-                <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded"
-                  style={{ background: "rgba(255,255,255,0.02)" }}>
-                  <span className="font-mono text-[8px] font-bold" style={{ color: "var(--cyan)" }}>
-                    [{String(i + 1).padStart(2, "0")}]
-                  </span>
-                  <span className="font-mono text-[8px] truncate" style={{ color: "rgba(255,255,255,0.6)" }}>
-                    {src}
-                  </span>
-                </div>
-              ))}
+              <div className="flex flex-col gap-1.5 flex-1 justify-between">
+                {archivist.sources!.slice(0, 4).map((src, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 rounded-lg flex-1"
+                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", minHeight: 36 }}>
+                    <span className="font-mono text-[9px] font-bold shrink-0" style={{ color: "var(--cyan)" }}>
+                      [{String(i + 1).padStart(2, "0")}]
+                    </span>
+                    <span className="font-mono text-[9px] truncate" style={{ color: "rgba(255,255,255,0.65)" }}>
+                      {src}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {/* Error state */}
           {hasError && (
-            <div className="px-3 py-2 rounded-lg" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)" }}>
+            <div className="flex items-start gap-2 px-3 py-3 rounded-lg flex-1"
+              style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)" }}>
               <span className="font-mono text-[9px]" style={{ color: "var(--red)" }}>
                 ⚠ RAG pipeline error — {archivist.error}
               </span>
@@ -736,8 +743,9 @@ function ComplianceGatewayModule({
         </div>
       )}
 
-      <p className="text-[9px] font-mono mt-auto pt-2" style={{ color: "var(--muted)", lineHeight: 1.5 }}>
-        IBM Docling ingestion · Supabase pgvector cosine similarity · watsonx Llama-4 Maverick RAG synthesis
+      {/* Footer */}
+      <p className="text-[8px] font-mono shrink-0 pt-1" style={{ color: "rgba(255,255,255,0.15)", lineHeight: 1.5 }}>
+        IBM Docling ingestion · Supabase pgvector cosine similarity · watsonx Granite-4 RAG synthesis
       </p>
     </div>
   );
