@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "@/lib/watsonx";
-import { generateTextGPT4o } from "@/lib/github-models";
+import { generateTextGroq } from "@/lib/groq";
 import type { ForecasterData, FlareItem } from "@/components/ForecasterPanel";
 
 export const runtime = "nodejs";
@@ -177,17 +177,17 @@ export async function POST(req: NextRequest) {
         ? `No solar flares detected between ${period.start} and ${period.end}. Solar activity is quiet.`
         : `${items.length} solar flare(s) detected from ${period.start} to ${period.end}.`;
 
-    // Try GPT-4o via GitHub Models first; fall back to watsonx (non-fatal)
+    // Try Groq Llama-3.3-70b first; fall back to watsonx (non-fatal)
     let modelUsed = "fallback";
     try {
-      const raw = await generateTextGPT4o(SUMMARY_PROMPT(items, period), {
+      const raw = await generateTextGroq(SUMMARY_PROMPT(items, period), {
         maxTokens: 200,
         temperature: 0.3,
       });
       const cleaned = cleanSummary(raw);
-      if (cleaned.length > 20) { summary = cleaned; modelUsed = "gpt-4o"; }
-    } catch (gptErr) {
-      console.warn("[forecaster] gpt-4o summary failed, falling back to watsonx:", gptErr);
+      if (cleaned.length > 20) { summary = cleaned; modelUsed = "llama-3.3-70b-groq"; }
+    } catch (groqErr) {
+      console.warn("[forecaster] groq summary failed, falling back to watsonx:", groqErr);
       try {
         const raw = await generateText(SUMMARY_PROMPT(items, period), {
           maxNewTokens: 200,
