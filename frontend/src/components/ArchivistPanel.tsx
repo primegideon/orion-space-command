@@ -5,6 +5,7 @@ export interface ArchivistData {
   sources: string[];
   answer: string;
   confidence?: string;
+  model_used?: string;
   error?: string;
 }
 
@@ -144,10 +145,18 @@ export default function ArchivistPanel({ data, loading, active, dimmed }: Props)
             Research RAG
           </h2>
         </div>
-        <span className="label px-2 py-0.5 rounded-full"
-          style={{ background: "var(--emerald-dim)", color: "var(--emerald)" }}>
-          Docling
-        </span>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {data?.model_used && (
+            <span className="font-mono text-[8px] px-1.5 py-0.5 rounded tracking-widest uppercase"
+              style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.3)", color: "#a78bfa" }}>
+              ✦ {data.model_used}
+            </span>
+          )}
+          <span className="label px-2 py-0.5 rounded-full"
+            style={{ background: "var(--emerald-dim)", color: "var(--emerald)" }}>
+            Docling
+          </span>
+        </div>
       </div>
 
       {/* Scrollable body */}

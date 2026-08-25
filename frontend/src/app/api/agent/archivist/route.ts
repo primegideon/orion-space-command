@@ -119,14 +119,14 @@ export async function POST(req: NextRequest) {
     try {
       queryEmbedding = await generateEmbedding(query.trim());
     } catch (embedErr) {
-      // Embedding service unavailable — fall back to watsonx direct answer
+      // Embedding service unavailable — fall back to Granite direct answer
       console.warn("[archivist] embedding failed, falling back to direct LLM answer:", embedErr);
       const fallbackAnswer = await generateText(
         `You are the ORION Archivist, an astrophysics research assistant. Answer this question as best you can based on your training knowledge about space science, asteroids, solar activity, and astrophysics research:\n\nQuestion: ${query.trim()}\n\nAnswer:`,
-        { maxNewTokens: 400, temperature: 0.3 }
+        { maxNewTokens: 400, temperature: 0.3, modelId: "ibm/granite-4-h-small" }
       );
       return NextResponse.json<ArchivistData>(
-        { agent: "archivist", answer: fallbackAnswer.trim(), sources: ["watsonx knowledge base"], confidence: "medium" },
+        { agent: "archivist", answer: fallbackAnswer.trim(), sources: ["watsonx knowledge base"], confidence: "medium", model_used: "granite-4-h-small" },
         { status: 200 }
       );
     }
@@ -153,6 +153,7 @@ export async function POST(req: NextRequest) {
             "Try rephrasing or ask about asteroids, solar flares, or astrophysics topics.",
           sources: [],
           confidence: "low",
+          model_used: "granite-4-h-small",
         },
         { status: 200 }
       );
@@ -168,29 +169,52 @@ export async function POST(req: NextRequest) {
     let answer = "Unable to synthesise an answer from the retrieved research.";
     let confidence: ArchivistData["confidence"] = "low";
 
+    // Try Granite first for domain-specific RAG synthesis; fall back to Llama-4 on any failure.
+    const GRANITE_MODEL = "ibm/granite-4-h-small";
+    let synthRaw: string | null = null;
+    let modelUsed = "fallback";
+
     try {
-      const raw = await generateText(ragPrompt(context, query.trim()), {
+      synthRaw = await generateText(ragPrompt(context, query.trim()), {
         maxNewTokens: 512,
         temperature: 0.2,
+        modelId: GRANITE_MODEL,
       });
-      // Use cleanAnswer to strip all markdown/bullets/bold regardless of model behaviour
-      const cleaned = cleanAnswer(raw);
+      if (synthRaw) modelUsed = "granite-4-h-small";
+    } catch (graniteErr) {
+      console.warn("[archivist] granite synthesis failed, falling back to llama:", graniteErr);
+      try {
+        synthRaw = await generateText(ragPrompt(context, query.trim()), {
+          maxNewTokens: 512,
+          temperature: 0.2,
+        });
+        if (synthRaw) modelUsed = "llama-4-maverick";
+      } catch (llamaErr) {
+        console.warn("[archivist] watsonx RAG synthesis failed:", llamaErr);
+      }
+    }
+
+    if (synthRaw) {
+      const cleaned = cleanAnswer(synthRaw);
       answer = cleaned.answer;
       confidence = cleaned.confidence;
-    } catch (llmErr) {
-      console.warn("[archivist] watsonx RAG synthesis failed:", llmErr);
+    } else {
       answer = `Retrieved ${chunks.length} relevant research excerpt(s) but synthesis failed. Key sources: ${uniqueSources.join(", ")}`;
     }
 
     return NextResponse.json<ArchivistData>(
-      { agent: "archivist", answer, sources: uniqueSources, confidence },
+      { agent: "archivist", answer, sources: uniqueSources, confidence, model_used: modelUsed },
       { status: 200 }
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const is429 = message.includes("429") || message.includes("consumption_limit_reached");
+    const friendly = is429
+      ? "The AI model hit the rate limit (2 req/s on the free plan). Wait a moment and try again."
+      : "The Archivist pipeline encountered an error. Please try again.";
     return NextResponse.json<ArchivistData>(
-      { agent: "archivist", answer: `Archivist error: ${message}`, sources: [], confidence: "low", error: message },
-      { status: 500 }
+      { agent: "archivist", answer: friendly, sources: [], confidence: "low", model_used: "granite-4-h-small" },
+      { status: 200 }
     );
   }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { SatellitesResponse, SatelliteRecord } from "@/app/api/satellites/route";
+import type { TleResponse, TleRecord } from "@/app/api/tle/route";
 
 const BAND_COLOR: Record<SatelliteRecord["band"], string> = {
   LEO: "var(--cyan)",
@@ -41,6 +42,10 @@ export default function ConstellationFleet() {
   const [error, setError]     = useState<string | null>(null);
   const [fetchedAt, setFetchedAt] = useState<string>("");
 
+  // SGP4 live propagation data keyed by NORAD ID
+  const [tleMap, setTleMap] = useState<Map<number, TleRecord>>(new Map());
+  const [tleLoading, setTleLoading] = useState(true);
+
   useEffect(() => {
     let alive = true;
 
@@ -68,6 +73,34 @@ export default function ConstellationFleet() {
     load();
     // Refresh every 60 min — TLEs don't change faster
     const id = setInterval(load, 60 * 60 * 1000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  // Live SGP4 propagation — refresh every 30 s so sub-point visibly updates
+  useEffect(() => {
+    let alive = true;
+
+    async function loadTle() {
+      setTleLoading(true);
+      try {
+        const res = await fetch("/api/tle");
+        if (!res.ok) return; // silent — don't disrupt main table
+        const json = (await res.json()) as TleResponse;
+        if (!alive) return;
+        const map = new Map<number, TleRecord>();
+        for (const rec of json.records ?? []) {
+          map.set(rec.norad_id, rec);
+        }
+        setTleMap(map);
+      } catch {
+        // Non-fatal — SGP4 data is supplemental
+      } finally {
+        if (alive) setTleLoading(false);
+      }
+    }
+
+    loadTle();
+    const id = setInterval(loadTle, 30_000);
     return () => { alive = false; clearInterval(id); };
   }, []);
 
@@ -130,7 +163,9 @@ export default function ConstellationFleet() {
         {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
 
         {/* Rows */}
-        {!loading && sats.map((sat, i) => (
+        {!loading && sats.map((sat, i) => {
+          const tle = tleMap.get(sat.norad_id);
+          return (
           <div
             key={sat.norad_id}
             className="grid items-center px-4 py-2.5 font-mono text-[11px]"
@@ -140,10 +175,22 @@ export default function ConstellationFleet() {
               borderBottom: i < sats.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
             }}
           >
-            {/* Name + NORAD */}
+            {/* Name + NORAD + live SGP4 sub-point */}
             <div className="flex flex-col min-w-0">
               <span className="truncate" style={{ color: "var(--foreground)" }}>{sat.name}</span>
               <span className="text-[9px]" style={{ color: "var(--muted)" }}>NORAD {sat.norad_id}</span>
+              {/* Live SGP4 Lat/Lon + velocity sub-line */}
+              {tleLoading && !tle ? (
+                <span className="text-[9px] font-mono animate-pulse" style={{ color: "rgba(255,255,255,0.18)" }}>
+                  propagating…
+                </span>
+              ) : tle ? (
+                <span className="text-[9px] font-mono tabular-nums" style={{ color: "var(--cyan)", opacity: 0.85 }}>
+                  {tle.lat_deg >= 0 ? `${tle.lat_deg}°N` : `${Math.abs(tle.lat_deg)}°S`}{" "}
+                  {tle.lon_deg >= 0 ? `${tle.lon_deg}°E` : `${Math.abs(tle.lon_deg)}°W`}
+                  {" · "}{tle.velocity_kms} km/s
+                </span>
+              ) : null}
             </div>
 
             {/* Band */}
@@ -165,7 +212,8 @@ export default function ConstellationFleet() {
             {/* Altitude bar */}
             <BarCell value={sat.altitude_km} max={36000} color={BAND_COLOR[sat.band]} />
           </div>
-        ))}
+          );
+        })}
 
         {/* No data */}
         {!loading && !error && sats.length === 0 && (

@@ -8,6 +8,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "@/lib/watsonx";
+import { generateTextGemini } from "@/lib/gemini";
 import type { SentinelData, AsteroidItem } from "@/components/SentinelPanel";
 
 export const runtime = "nodejs";
@@ -125,18 +126,29 @@ export async function POST(req: NextRequest) {
     const feed = (await feedRes.json()) as NeoWsFeed;
     const items = flattenNeo(feed);
 
-    // Generate summary via watsonx (non-fatal — degrade gracefully)
+    // Generate summary — try Gemini 2.0 Flash first; fall back to watsonx (non-fatal)
     let summary = `${items.length} near-Earth objects tracked from ${dateRange.start} to ${dateRange.end}.`;
+    let modelUsed = "fallback";
     try {
-      const raw = await generateText(SUMMARY_PROMPT(items, dateRange), {
-        maxNewTokens: 200,
+      const raw = await generateTextGemini(SUMMARY_PROMPT(items, dateRange), {
+        maxOutputTokens: 600,  // Gemini 3.6 Flash needs headroom for thinking tokens
         temperature: 0.3,
       });
       const cleaned = cleanSummary(raw);
-      if (cleaned.length > 20) summary = cleaned;
-    } catch (llmErr) {
-      // LLM failure is non-fatal — surface data with fallback summary
-      console.warn("[sentinel] watsonx summary failed:", llmErr);
+      if (cleaned.length > 20) { summary = cleaned; modelUsed = "gemini-3.6-flash"; }
+    } catch (geminiErr) {
+      console.warn("[sentinel] gemini summary failed, falling back to watsonx:", geminiErr);
+      try {
+        const raw = await generateText(SUMMARY_PROMPT(items, dateRange), {
+          maxNewTokens: 200,
+          temperature: 0.3,
+        });
+        const cleaned = cleanSummary(raw);
+        if (cleaned.length > 20) { summary = cleaned; modelUsed = "llama-4-maverick"; }
+      } catch (llmErr) {
+        // Both LLMs failed — surface data with static fallback summary
+        console.warn("[sentinel] watsonx summary also failed:", llmErr);
+      }
     }
 
     const response: SentinelData = {
@@ -145,6 +157,7 @@ export async function POST(req: NextRequest) {
       count: items.length,
       summary,
       date_range: dateRange,
+      model_used: modelUsed,
     };
 
     void query; // query used for routing context; NeoWs always returns 7-day window

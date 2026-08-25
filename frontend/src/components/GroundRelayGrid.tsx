@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { DsnDish, DsnResponse, DsnStation } from "@/app/api/dsn/route";
+import type { SatnogsResponse, SatnogsStation } from "@/app/api/satnogs/route";
 
 /* ════════════════════════════════════════════════════════════════════════════
  *  GROUND RELAY GRID — Live NASA Deep Space Network
@@ -71,7 +72,7 @@ interface MapStation {
   color:  string;
 }
 
-function WorldMap({ stations }: { stations: DsnStation[] }) {
+function WorldMap({ stations, satnogsStations }: { stations: DsnStation[]; satnogsStations: SatnogsStation[] }) {
   const W = 360, H = 160;
   function proj(lat: number, lng: number) {
     return {
@@ -94,15 +95,16 @@ function WorldMap({ stations }: { stations: DsnStation[] }) {
 
   return (
     <div className="glass rounded-xl p-3 mb-4 overflow-hidden">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <p className="text-[9px] font-mono tracking-widest uppercase" style={{ color: "var(--muted)" }}>
-          Ground Station Map · Equirectangular Projection · NASA DSN Live
+          Ground Station Map · Equirectangular Projection · NASA DSN + SatNOGS
         </p>
-        <div className="flex gap-3 text-[8px] font-mono" style={{ color: "var(--muted)" }}>
+        <div className="flex gap-3 text-[8px] font-mono flex-wrap" style={{ color: "var(--muted)" }}>
           <span style={{ color: "var(--cyan)"    }}>▲ Uplink</span>
           <span style={{ color: "var(--emerald)"}}>▼ Downlink</span>
           <span style={{ color: "#a78bfa"        }}>⇅ Both</span>
           <span style={{ color: "var(--amber)"   }}>◉ Standby</span>
+          <span style={{ color: "#f59e0b"        }}>● SatNOGS</span>
         </div>
       </div>
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
@@ -116,7 +118,20 @@ function WorldMap({ stations }: { stations: DsnStation[] }) {
           return <line key={`lng${lng}`} x1={x} y1={0} x2={x} y2={H} stroke="rgba(255,255,255,0.04)" strokeWidth={0.5} />;
         })}
 
-        {/* Complex dots */}
+        {/* SatNOGS community stations — rendered first so DSN dots draw on top */}
+        {satnogsStations.map((s) => {
+          const { x, y } = proj(s.lat, s.lng);
+          return (
+            <circle
+              key={`satnogs-${s.id}`}
+              cx={x} cy={y} r={1.6}
+              fill="#f59e0b"
+              opacity={0.6}
+            />
+          );
+        })}
+
+        {/* DSN Complex dots — rendered on top of SatNOGS dots */}
         {mapStations.map((s) => {
           const { x, y } = proj(s.lat, s.lng);
           return (
@@ -289,6 +304,9 @@ export default function GroundRelayGrid() {
   const [error,       setError]       = useState<string | null>(null);
   const [syncedAt,    setSyncedAt]    = useState<string>("");
 
+  // SatNOGS community ground stations (supplemental — non-fatal if unavailable)
+  const [satnogsStations, setSatnogsStations] = useState<SatnogsStation[]>([]);
+
   /** Core fetch — `bust` adds a cache-busting query param for manual refreshes */
   const fetchDsn = useCallback(async (bust = false) => {
     try {
@@ -324,6 +342,22 @@ export default function GroundRelayGrid() {
     const poll = setInterval(() => fetchDsn(), 15_000);
     return () => clearInterval(poll);
   }, [fetchDsn]);
+
+  // Fetch SatNOGS stations once on mount — refreshes every 5 min
+  useEffect(() => {
+    let alive = true;
+    async function loadSatnogs() {
+      try {
+        const res = await fetch("/api/satnogs");
+        if (!res.ok || !alive) return;
+        const json = (await res.json()) as SatnogsResponse;
+        setSatnogsStations(json.stations ?? []);
+      } catch { /* non-fatal — SatNOGS is supplemental */ }
+    }
+    loadSatnogs();
+    const id = setInterval(loadSatnogs, 5 * 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
   if (loading) return <Skeleton />;
 
@@ -447,7 +481,7 @@ export default function GroundRelayGrid() {
       )}
 
       {/* ── World map ───────────────────────────────────────────────────── */}
-      <WorldMap stations={stations} />
+      <WorldMap stations={stations} satnogsStations={satnogsStations} />
 
       {/* ── Per-complex section ─────────────────────────────────────────── */}
       {stations.map((station) => {

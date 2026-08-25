@@ -5,6 +5,8 @@ import type { ForecasterData } from "./ForecasterPanel";
 import type { SatelliteRecord, SatellitesResponse } from "@/app/api/satellites/route";
 import type { KpResponse } from "@/app/api/kp/route";
 import type { DonkiResponse } from "@/app/api/donki/route";
+import type { SolarWindData } from "@/app/api/solarwind/route";
+// Note: SolarWindData.source changed to "noaa-rtsw" — no UI impact
 
 /* ════════════════════════════════════════════════════════════════════════════
  *  ADVANCED THREAT MATRIX
@@ -742,6 +744,203 @@ function ComplianceGatewayModule({
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
+ *  MODULE 4 — LIVE SOLAR WIND (NOAA DSCOVR)
+ * ══════════════════════════════════════════════════════════════════════════*/
+
+function bzColor(bz: number | null): string {
+  if (bz === null) return "var(--muted)";
+  if (bz <= -10)  return "var(--red)";
+  if (bz <= -5)   return "#fb923c";
+  if (bz < 0)     return "var(--amber)";
+  return "var(--emerald)";
+}
+
+function bzLabel(bz: number | null): string {
+  if (bz === null) return "—";
+  if (bz <= -10)  return "SEVERE SOUTHWARD";
+  if (bz <= -5)   return "STRONGLY SOUTHWARD";
+  if (bz < 0)     return "SOUTHWARD";
+  return "NORTHWARD / NEUTRAL";
+}
+
+function SolarWindModule() {
+  const [data, setData]   = useState<SolarWindData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncedAt, setSyncedAt] = useState<string>("");
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      try {
+        const res = await fetch("/api/solarwind");
+        if (!alive) return;
+        if (res.ok) { setData((await res.json()) as SolarWindData); setSyncedAt(utcStamp()); }
+      } catch { /* non-fatal */ }
+      finally { if (alive) setLoading(false); }
+    }
+    load();
+    const id = setInterval(load, 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  const bz    = data?.bz_nT   ?? null;
+  const bt    = data?.bt_nT   ?? null;
+  const rho   = data?.proton_density ?? null;
+  const speed = data?.speed_kms ?? null;
+  const bzC   = bzColor(bz);
+
+  const stats = [
+    { label: "Bz",   value: bz    !== null ? `${bz > 0 ? "+" : ""}${bz} nT` : "—", color: bzC },
+    { label: "|Bt|", value: bt    !== null ? `${bt} nT`                      : "—", color: "rgba(255,255,255,0.75)" },
+    { label: "ρ",    value: rho   !== null ? `${rho} p/cm³`                  : "—", color: rho   !== null && rho   > 10  ? "#fb923c" : "rgba(255,255,255,0.75)" },
+    { label: "V",    value: speed !== null ? `${speed} km/s`                 : "—", color: speed !== null && speed > 600 ? "#fb923c" : "rgba(255,255,255,0.75)" },
+  ];
+
+  const statusDot: Record<string, string> = {
+    ok:      "var(--emerald)",
+    warn:    "var(--amber)",
+    alert:   "var(--red)",
+    unknown: "rgba(255,255,255,0.2)",
+  };
+
+  return (
+    <div className="glass rounded-xl p-4 flex flex-col gap-3 h-full">
+      {/* Title row */}
+      <div className="flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono font-bold tracking-widest uppercase" style={{ color: "var(--cyan)" }}>
+            Solar Wind
+          </span>
+          <span className="text-[8px] font-mono px-1.5 py-0.5 rounded"
+            style={{ background: "rgba(0,210,230,0.08)", border: "1px solid rgba(0,210,230,0.15)", color: "var(--muted)" }}>
+            NOAA RTSW
+          </span>
+          {!loading && bz !== null && (
+            <Badge label={bz < 0 ? "SOUTHWARD" : "STABLE"} color={bz < 0 ? bzC : "var(--emerald)"} />
+          )}
+        </div>
+        <span className="text-[8px] font-mono" style={{ color: "rgba(255,255,255,0.2)" }}>
+          {loading && !data ? "connecting…" : syncedAt}
+        </span>
+      </div>
+
+      {/* 4-stat grid */}
+      <div className="grid grid-cols-4 gap-1.5 shrink-0">
+        {stats.map((s) => (
+          <div key={s.label} className="flex flex-col items-center py-2 px-2 rounded-lg"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <span className="text-[8px] font-mono" style={{ color: "var(--muted)" }}>{s.label}</span>
+            <span className={`text-[13px] font-mono font-bold tabular-nums mt-0.5${loading && !data ? " animate-pulse opacity-30" : ""}`}
+              style={{ color: s.color }}>
+              {loading && !data ? "…" : s.value}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Bz gauge bar with scale */}
+      <div className="shrink-0">
+        <div className="flex justify-between mb-1">
+          <span className="text-[8px] font-mono" style={{ color: "var(--red)" }}>−20 nT</span>
+          <span className="text-[8px] font-mono" style={{ color: "var(--muted)" }}>Bz</span>
+          <span className="text-[8px] font-mono" style={{ color: "var(--emerald)" }}>+20 nT</span>
+        </div>
+        <div className="relative h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+          {bz !== null && (
+            <div className="absolute top-0 h-full rounded-full transition-all duration-500"
+              style={{
+                background: bzC,
+                width: `${Math.min(100, (Math.abs(bz) / 20) * 50)}%`,
+                left: bz < 0 ? `${50 - Math.min(50, (Math.abs(bz) / 20) * 50)}%` : "50%",
+              }}
+            />
+          )}
+          <div className="absolute top-0 h-full w-px" style={{ left: "50%", background: "rgba(255,255,255,0.2)" }} />
+        </div>
+        <div className="flex justify-center mt-1">
+          <span className="text-[9px] font-mono font-bold" style={{ color: bzC }}>
+            {bz !== null ? bzLabel(bz) : "AWAITING DATA"}
+          </span>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="shrink-0 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
+
+      {/* Geomagnetic impact assessment */}
+      <div className="flex flex-col flex-1 gap-2">
+        <span className="text-[8px] font-mono tracking-widest uppercase shrink-0" style={{ color: "var(--muted)" }}>
+          Geomagnetic Impact Assessment
+        </span>
+        <div className="flex flex-col flex-1 gap-2">
+          {/* Bz row */}
+          <div className="flex items-center gap-3 px-3 rounded-lg flex-1"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", minHeight: 52 }}>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: statusDot[bz === null ? "unknown" : bz <= -5 ? "alert" : bz < 0 ? "warn" : "ok"] }} />
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="text-[8px] font-mono tracking-wider uppercase" style={{ color: "var(--muted)" }}>Bz Field</span>
+              <span className="text-[11px] font-mono font-bold tabular-nums" style={{ color: bzC }}>
+                {loading && !data ? "—" : bz !== null ? `${bz > 0 ? "+" : ""}${bz} nT` : "—"}
+              </span>
+              <span className="text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.4)" }}>
+                {loading && !data ? "loading…" : bz === null ? "No data" : bz <= -10 ? "Severe southward — storm likely" : bz <= -5 ? "Strongly southward — elevated risk" : bz < 0 ? "Southward — watch active" : "Northward / neutral — stable"}
+              </span>
+            </div>
+          </div>
+          {/* Speed row */}
+          <div className="flex items-center gap-3 px-3 rounded-lg flex-1"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", minHeight: 52 }}>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: statusDot[speed === null ? "unknown" : speed > 700 ? "alert" : speed > 600 ? "warn" : "ok"] }} />
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="text-[8px] font-mono tracking-wider uppercase" style={{ color: "var(--muted)" }}>Solar Wind Speed</span>
+              <span className="text-[11px] font-mono font-bold tabular-nums" style={{ color: speed !== null && speed > 600 ? "#fb923c" : "rgba(255,255,255,0.85)" }}>
+                {loading && !data ? "—" : speed !== null ? `${speed} km/s` : "—"}
+              </span>
+              <span className="text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.4)" }}>
+                {loading && !data ? "loading…" : speed === null ? "No data" : speed > 700 ? "Extreme — severe geomagnetic impact" : speed > 600 ? "Elevated — enhanced auroral activity" : speed > 450 ? "Enhanced — minor disturbance possible" : "Nominal — quiet conditions"}
+              </span>
+            </div>
+          </div>
+          {/* Proton density row */}
+          <div className="flex items-center gap-3 px-3 rounded-lg flex-1"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", minHeight: 52 }}>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: statusDot[rho === null ? "unknown" : rho > 20 ? "alert" : rho > 10 ? "warn" : "ok"] }} />
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="text-[8px] font-mono tracking-wider uppercase" style={{ color: "var(--muted)" }}>Proton Density</span>
+              <span className="text-[11px] font-mono font-bold tabular-nums" style={{ color: rho !== null && rho > 10 ? "#fb923c" : "rgba(255,255,255,0.85)" }}>
+                {loading && !data ? "—" : rho !== null ? `${rho} p/cm³` : "—"}
+              </span>
+              <span className="text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.4)" }}>
+                {loading && !data ? "loading…" : rho === null ? "No data" : rho > 20 ? "Very high — particle flux elevated" : rho > 10 ? "Elevated — monitor closely" : "Nominal — background level"}
+              </span>
+            </div>
+          </div>
+          {/* Bt / magnetopause row */}
+          <div className="flex items-center gap-3 px-3 rounded-lg flex-1"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", minHeight: 52 }}>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: statusDot[bt === null ? "unknown" : bt > 20 ? "alert" : bt > 12 ? "warn" : "ok"] }} />
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="text-[8px] font-mono tracking-wider uppercase" style={{ color: "var(--muted)" }}>Total Field |Bt|</span>
+              <span className="text-[11px] font-mono font-bold tabular-nums" style={{ color: bt !== null && bt > 12 ? "#fb923c" : "rgba(255,255,255,0.85)" }}>
+                {loading && !data ? "—" : bt !== null ? `${bt} nT` : "—"}
+              </span>
+              <span className="text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.4)" }}>
+                {loading && !data ? "loading…" : bt === null ? "No data" : bt > 20 ? "Extreme magnetopause compression" : bt > 12 ? "Magnetopause compressed" : "Nominal field strength"}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <p className="text-[8px] font-mono shrink-0 pt-1" style={{ color: "rgba(255,255,255,0.15)", lineHeight: 1.5 }}>
+        NOAA SWPC DSCOVR · Real-Time Solar Wind · 1-min cadence
+      </p>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
  *  EXPORT — top-level layout
  * ══════════════════════════════════════════════════════════════════════════*/
 
@@ -759,9 +958,10 @@ export default function AdvancedThreatMatrix({ forecaster, exporting, archivist,
         <div className="flex-1 h-px" style={{ background: "linear-gradient(270deg, var(--cyan)44, transparent)" }} />
       </div>
 
-      {/* 3-column grid on wide screens, stack on mobile */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      {/* 2×2 grid on wide screens — Solar Wind added as fourth panel */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4" style={{ alignItems: "stretch" }}>
         <OrbitalDebrisModule forecaster={forecaster} />
+        <SolarWindModule />
         <CyberSpectrumModule />
         <ComplianceGatewayModule archivist={archivist} archivistLoading={archivistLoading} />
       </div>

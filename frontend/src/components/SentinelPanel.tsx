@@ -34,6 +34,7 @@ export interface SentinelData {
   count: number;
   summary: string;
   date_range?: { start: string; end: string };
+  model_used?: string;
   error?: string;
 }
 
@@ -128,10 +129,18 @@ export default function SentinelPanel({ data, loading, active, dimmed, onSelectI
             Near-Earth Objects
           </h2>
         </div>
-        <span className="label px-2 py-0.5 rounded-full"
-          style={{ background: "var(--cyan-dim)", color: "var(--cyan)" }}>
-          NeoWs
-        </span>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {data?.model_used && (
+            <span className="font-mono text-[8px] px-1.5 py-0.5 rounded tracking-widest uppercase"
+              style={{ background: "rgba(74,144,226,0.12)", border: "1px solid rgba(74,144,226,0.3)", color: "#60a5fa" }}>
+              ✦ {data.model_used}
+            </span>
+          )}
+          <span className="label px-2 py-0.5 rounded-full"
+            style={{ background: "var(--cyan-dim)", color: "var(--cyan)" }}>
+            NeoWs
+          </span>
+        </div>
       </div>
 
       {/* ── Scrollable body ──────────────────────────────────────────────── */}

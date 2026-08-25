@@ -20,6 +20,7 @@ export interface ForecasterData {
   count: number;
   summary: string;
   period?: { start: string; end: string };
+  model_used?: string;
   error?: string;
 }
 
@@ -134,10 +135,18 @@ export default function ForecasterPanel({ data, loading, active, dimmed, onSelec
             Solar Weather
           </h2>
         </div>
-        <span className="label px-2 py-0.5 rounded-full"
-          style={{ background: "var(--amber-dim)", color: "var(--amber)" }}>
-          DONKI
-        </span>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {data?.model_used && (
+            <span className="font-mono text-[8px] px-1.5 py-0.5 rounded tracking-widest uppercase"
+              style={{ background: "rgba(16,163,127,0.12)", border: "1px solid rgba(16,163,127,0.3)", color: "#34d399" }}>
+              ✦ {data.model_used}
+            </span>
+          )}
+          <span className="label px-2 py-0.5 rounded-full"
+            style={{ background: "var(--amber-dim)", color: "var(--amber)" }}>
+            DONKI
+          </span>
+        </div>
       </div>
 
       {/* Tab toggle — only shown when data is loaded with no error */}

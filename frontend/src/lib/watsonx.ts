@@ -57,6 +57,8 @@ async function getIamToken(): Promise<string> {
 interface GenerateOptions {
   maxNewTokens?: number;
   temperature?: number;
+  /** Override the default Llama-4 model with a specific watsonx model ID. */
+  modelId?: string;
 }
 
 /**
@@ -66,7 +68,7 @@ export async function generateText(
   prompt: string,
   options: GenerateOptions = {}
 ): Promise<string> {
-  const { maxNewTokens = 512, temperature = 0.2 } = options;
+  const { maxNewTokens = 512, temperature = 0.2, modelId } = options;
 
   const watsonxUrl = process.env.WATSONX_URL ?? "https://us-south.ml.cloud.ibm.com";
   const projectId = process.env.WATSONX_PROJECT_ID;
@@ -83,7 +85,7 @@ export async function generateText(
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        model_id: WATSONX_MODEL,
+        model_id: modelId ?? WATSONX_MODEL,
         input: prompt,
         parameters: {
           max_new_tokens: maxNewTokens,

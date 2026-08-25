@@ -107,7 +107,9 @@ sequenceDiagram
     participant NeoWs as NASA NeoWs API
     participant DONKI as NASA DONKI API
     participant SB as Supabase pgvector
-    participant Synth as IBM watsonx Llama-4 Maverick
+    participant Gemini as Google Gemini 2.0 Flash
+    participant GPT4o as GPT-4o (GitHub Models)
+    participant Granite as IBM Granite-4-h-small
 
     User->>UI: Natural language query
     UI->>Router: POST /api/agent { query }
@@ -118,20 +120,23 @@ sequenceDiagram
         Router->>Sentinel: POST { query }
         Sentinel->>NeoWs: GET /neo/rest/v1/feed (7-day)
         NeoWs-->>Sentinel: NEO JSON
-        Sentinel->>Synth: Summarise asteroid data
-        Synth-->>UI: SentinelData + AI Threat Summary
+        Sentinel->>Gemini: Summarise asteroid data
+        Gemini-->>UI: SentinelData + AI Threat Summary
+        note over Sentinel,Gemini: Falls back to watsonx Llama-4 if Gemini unavailable
     else intent = forecaster
         Router->>Forecaster: POST { query }
         Forecaster->>DONKI: GET /DONKI/FLR (30-day)
         DONKI-->>Forecaster: Flare events
-        Forecaster->>Synth: Summarise flare activity
-        Synth-->>UI: ForecasterData + Recharts timeline
+        Forecaster->>GPT4o: Summarise flare activity
+        GPT4o-->>UI: ForecasterData + Recharts timeline
+        note over Forecaster,GPT4o: Falls back to watsonx Llama-4 if GPT-4o unavailable
     else intent = archivist
         Router->>Archivist: POST { query }
         Archivist->>SB: match_embeddings RPC (cosine similarity)
         SB-->>Archivist: Top-5 research chunks
-        Archivist->>Synth: RAG synthesis
-        Synth-->>UI: ArchivistData + source citations
+        Archivist->>Granite: RAG synthesis
+        Granite-->>UI: ArchivistData + source citations
+        note over Archivist,Granite: Falls back to watsonx Llama-4 if Granite unavailable
     end
 ```
 
@@ -146,13 +151,21 @@ The V1 Langflow flows are preserved in `./langflow/flows/` for reference:
 | `forecaster-flow.json` | Forecaster Agent — DONKI fetch + Maverick summary |
 | `archivist-flow.json` | Archivist Agent — Chroma retrieval + Maverick synthesis |
 
-### IBM watsonx Model
+### Multi-Model AI Fleet
 
-| Model | Role |
-|-------|------|
-| `meta-llama/llama-4-maverick-17b-128e-instruct-fp8` | Intent routing, Sentinel/Forecaster narrative summaries, and Archivist RAG synthesis |
+ORION V2 distributes AI workloads across **four specialist model providers** — each agent uses the model best suited to its task, with automatic fallback to watsonx Llama-4 Maverick if a provider is unreachable.
 
-Llama-4 Maverick was selected across all agents for its instruction-following precision on structured JSON output. The selection was validated via a live benchmarking script (`scripts/test_model_candidates.py`) that tested all available watsonx models against the production routing prompt — Maverick returned the fastest response (1.1 s), cleanest JSON output, and correct intent classification across all test cases.
+| Agent | Primary Model | Provider | Fallback |
+|-------|--------------|----------|---------|
+| **Router** | `llama-4-maverick-17b-128e-instruct-fp8` | IBM watsonx | — |
+| **Sentinel** | `gemini-2.0-flash` | Google AI Studio | watsonx Llama-4 |
+| **Forecaster** | `gpt-4o` | GitHub Models (Azure) | watsonx Llama-4 |
+| **Archivist RAG** | `ibm/granite-4-h-small` | IBM watsonx | watsonx Llama-4 |
+
+- **Granite-4-h-small** was selected for Archivist RAG synthesis after live benchmarking against all available watsonx models — it is the only Granite instruct model active on this account's plan and produces clean, citation-aware prose from retrieved research chunks.
+- **Gemini 2.0 Flash** handles Sentinel summaries for its speed on structured JSON narration.
+- **GPT-4o via GitHub Models** handles Forecaster solar weather narratives for its precise event-timeline reasoning.
+- All model calls use plain `fetch()` — no SDK packages required. Rate-limit errors (HTTP 429) are caught and surfaced as friendly messages rather than raw API errors.
 
 ### IBM Docling — PDF Ingestion Pipeline
 
@@ -256,9 +269,17 @@ NASA_API_KEY=your_nasa_api_key
 # Supabase pgvector — https://supabase.com
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# Google AI Studio (Gemini 2.0 Flash) — https://aistudio.google.com/app/apikey
+# Used by Sentinel for NL summaries — falls back to watsonx if absent
+GEMINI_API_KEY=your_google_ai_studio_api_key
+
+# GitHub Models (GPT-4o via Azure inference) — https://github.com/settings/tokens
+# Used by Forecaster for NL summaries — falls back to watsonx if absent
+GITHUB_TOKEN=your_github_personal_access_token
 ```
 
-> **Note:** `.env.example` contains the complete list of required variables. There are no Langflow or ngrok variables in V2 — those were V1 only.
+> **Note:** `.env.example` contains the complete list of required variables. `GEMINI_API_KEY` and `GITHUB_TOKEN` are optional — if absent, those agents fall back to watsonx Llama-4 automatically. There are no Langflow or ngrok variables in V2 — those were V1 only.
 
 ### 4. Set up Supabase (one-time)
 
@@ -290,18 +311,39 @@ Dashboard available at **http://localhost:3000**.
 1. Connect the repository at **https://vercel.com/new** → Import `primegideon/orion-space-command`
 2. Set **Root Directory** to `frontend`
 3. Set **Node.js Version** to `22.x`
-4. Add all six environment variables under **Settings → Environments**:
+4. Add all environment variables under **Settings → Environments**:
 
-| Variable | Description |
-|----------|-------------|
-| `WATSONX_API_KEY` | IBM Cloud API key |
-| `WATSONX_PROJECT_ID` | watsonx.ai project ID |
-| `WATSONX_URL` | `https://us-south.ml.cloud.ibm.com` |
-| `NASA_API_KEY` | NASA Open APIs key (free at api.nasa.gov) |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `WATSONX_API_KEY` | ✅ | IBM Cloud API key |
+| `WATSONX_PROJECT_ID` | ✅ | watsonx.ai project ID |
+| `WATSONX_URL` | ✅ | `https://us-south.ml.cloud.ibm.com` |
+| `NASA_API_KEY` | ✅ | NASA Open APIs key (free at api.nasa.gov) |
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key |
+| `GEMINI_API_KEY` | ⚡ optional | Google AI Studio key — Sentinel uses Gemini 2.0 Flash; falls back to watsonx if absent |
+| `GITHUB_TOKEN` | ⚡ optional | GitHub PAT (`models:read`) — Forecaster uses GPT-4o; falls back to watsonx if absent |
 
 5. Push to `main` — Vercel auto-deploys on every commit. No ngrok, no local processes required.
+
+---
+
+## Live Data Feeds
+
+Every secondary dashboard panel is driven by a real external data source — no mocked or static data anywhere in the system.
+
+| Panel | Route | Source | Cadence |
+|-------|-------|--------|---------|
+| Orbital Debris & Drag | `/api/satellites` + `/api/kp` | CelesTrak satcat + NOAA Kp index | 10 min |
+| Solar Wind | `/api/solarwind` | NOAA SWPC DSCOVR RTSW mag + plasma | 60 s |
+| RF / Spectrum Risk | derived from Kp + flare data | NOAA Kp + NASA DONKI | live |
+| Ground Relay Map | `/api/dsn` + `/api/satnogs` | NASA DSN XML feed + SatNOGS Network API | 15 s / 5 min |
+| Constellation Fleet | `/api/satellites` + `/api/tle` | CelesTrak satcat + TLE SGP4 propagation | 10 min / 10 min |
+| Orbit Viewer | `/api/horizons` | NASA JPL Horizons ephemeris | per-request |
+| Sentinel NEOs | `/api/agent/sentinel` → NASA NeoWs | NASA NeoWs 7-day feed | on query |
+| Forecaster Flares | `/api/agent/forecaster` → NASA DONKI | NASA DONKI 30-day FLR feed | on query |
+
+**SatNOGS streaming strategy:** The SatNOGS API returns a ~2.8 MB plain array of all stations. Rather than downloading the full payload, the `/api/satnogs` route streams the response, parses station objects as chunks arrive, and cancels the connection once 300 online candidates are collected. These are then spread across 5 longitude bands (7 per band) to ensure a globally distributed map — avoiding the European cluster that results from taking the first N by station ID.
 
 ---
 

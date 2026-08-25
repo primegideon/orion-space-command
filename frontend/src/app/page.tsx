@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, KeyboardEvent, useCallback } from "react";
+import { useState, useEffect, useRef, KeyboardEvent, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 import SentinelPanel, { SentinelData, AsteroidItem, eyesUrl, jplOrbitUrl } from "@/components/SentinelPanel";
 import ForecasterPanel, { ForecasterData, FlareItem } from "@/components/ForecasterPanel";
@@ -132,6 +132,21 @@ declare global {
   }
 }
 
+/* ── JPL Horizons ephemeris types (mirrors /api/horizons) ─────────────────── */
+interface HorizonsData {
+  spkid: string;
+  body_name: string;
+  epoch_jd: string;
+  x_au: number;
+  y_au: number;
+  z_au: number;
+  vx_kms: number;
+  vy_kms: number;
+  vz_kms: number;
+  source: "jpl-horizons";
+  error?: string;
+}
+
 /* ── Full-page Orbit Viewer ───────────────────────────────────────────────── */
 function OrbitViewerPage({
   activeAsteroid,
@@ -145,6 +160,29 @@ function OrbitViewerPage({
 
   const noData = !target;
   const list = allAsteroids.slice(0, 20);
+
+  // JPL Horizons ephemeris — fetch when target changes
+  const [horizons, setHorizons]     = useState<HorizonsData | null>(null);
+  const [hLoading, setHLoading]     = useState(false);
+
+  // Use asteroid name as the Horizons query key (designations like "2016 XJ")
+  const targetName = target?.name ?? null;
+  const horizonsKey = useMemo(() => targetName, [targetName]);
+
+  useEffect(() => {
+    if (!horizonsKey) { setHorizons(null); return; }
+    let alive = true;
+    setHLoading(true);
+    setHorizons(null);
+
+    fetch(`/api/horizons?name=${encodeURIComponent(horizonsKey)}`)
+      .then((res) => res.json())
+      .then((data: HorizonsData) => { if (alive) setHorizons(data); })
+      .catch(() => { /* non-fatal — ephemeris is supplemental */ })
+      .finally(() => { if (alive) setHLoading(false); });
+
+    return () => { alive = false; };
+  }, [horizonsKey]);
 
   return (
     <div className="flex flex-col gap-3 animate-fade-in flex-1 min-h-0">
@@ -232,12 +270,51 @@ function OrbitViewerPage({
               allow="fullscreen"
               style={{ width: "100%", height: "100%", border: "none", display: "block" }}
             />
-            {/* corner badge */}
+            {/* Top-left: NASA EYES badge */}
             <div className="absolute top-2 left-3 pointer-events-none">
               <span className="font-mono text-[8px] tracking-widest uppercase px-2 py-0.5 rounded"
                 style={{ background: "rgba(0,0,0,0.65)", color: "rgba(0,210,230,0.8)", border: "1px solid rgba(0,210,230,0.2)" }}>
                 NASA EYES · LIVE · INTERACTIVE
               </span>
+            </div>
+            {/* Bottom-left: JPL Horizons ephemeris overlay — non-blocking, inside iframe frame */}
+            <div className="absolute bottom-0 left-0 right-0 pointer-events-none px-3 pb-2">
+              <div className="inline-flex items-center gap-2 flex-wrap font-mono"
+                style={{
+                  background: "rgba(0,0,0,0.72)",
+                  border: "1px solid rgba(0,210,230,0.18)",
+                  borderRadius: 6,
+                  padding: "4px 10px",
+                  backdropFilter: "blur(4px)",
+                }}>
+                <span className="text-[8px] tracking-widest uppercase shrink-0" style={{ color: "rgba(0,210,230,0.6)" }}>
+                  JPL Horizons
+                </span>
+                <span className="w-px h-2.5 shrink-0" style={{ background: "rgba(255,255,255,0.15)" }} />
+                {hLoading && (
+                  <span className="text-[8px] animate-pulse" style={{ color: "rgba(255,255,255,0.35)" }}>querying…</span>
+                )}
+                {!hLoading && horizons?.error && (
+                  <span className="text-[8px]" style={{ color: "rgba(251,191,36,0.7)" }}>ephemeris unavailable</span>
+                )}
+                {!hLoading && horizons && !horizons.error && (
+                  <>
+                    <span className="text-[8px]" style={{ color: "rgba(255,255,255,0.35)" }}>Pos</span>
+                    <span className="text-[8px] font-bold tabular-nums" style={{ color: "rgba(0,210,230,0.9)" }}>
+                      {horizons.x_au} · {horizons.y_au} · {horizons.z_au} AU
+                    </span>
+                    <span className="w-px h-2.5 shrink-0" style={{ background: "rgba(255,255,255,0.1)" }} />
+                    <span className="text-[8px]" style={{ color: "rgba(255,255,255,0.35)" }}>Vel</span>
+                    <span className="text-[8px] font-bold tabular-nums" style={{ color: "rgba(52,211,153,0.9)" }}>
+                      {horizons.vx_kms} · {horizons.vy_kms} · {horizons.vz_kms} km/s
+                    </span>
+                    <span className="w-px h-2.5 shrink-0" style={{ background: "rgba(255,255,255,0.1)" }} />
+                    <span className="text-[8px] tabular-nums" style={{ color: "rgba(255,255,255,0.2)" }}>
+                      JD {horizons.epoch_jd}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
