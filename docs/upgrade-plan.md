@@ -1,8 +1,8 @@
 # ORION Upgrade Plan — Multi-Model AI Fleet & Live Data Physics
 
-## Top-Level Overview
+## Overview
 
-**Goal:** Elevate ORION's technical depth to compete for "Best Use of Technology" by (1) distributing AI workloads across three specialist model providers and (2) ensuring every secondary dashboard view is powered by real, dynamic external data feeds.
+**Goal:** Strengthen ORION's technical architecture by (1) distributing AI workloads across specialist model providers suited to each agent's task, and (2) ensuring every secondary dashboard view is driven by real, dynamic external data feeds rather than static or derived values.
 
 **Scope:** Eight targeted changes across `frontend/src/` — four new AI provider integrations in existing agent routes, and four new or enhanced API routes for secondary views. The master router, Supabase logging, all existing telemetry-core routes, and the client-side component contracts remain completely untouched.
 
@@ -11,10 +11,10 @@
 - Every new provider call wraps the existing watsonx call pattern: it tries the new model first; if the key is absent or the call throws, it falls through to the current watsonx path.
 - Every new secondary data route is a brand-new file under `frontend/src/app/api/` — no existing route file is modified.
 
-**Feasibility Confirmation:**
+**Implementation Notes:**
 - All proposed external endpoints are public, free, and CORS-irrelevant from Next.js serverless routes (no browser CORS applies to server-side fetch).
 - `satellite.js` v4.1.4 is already installed. No new npm packages are required.
-- The one meaningful rate-limit risk is NASA NeoWs/DONKI, which ORION already handles with `NASA_API_KEY`; the other feeds (NOAA SWPC, SatNOGS, JPL Horizons, CelesTrak TLE) are open and unauthenticated.
+- The one meaningful rate-limit consideration is NASA NeoWs/DONKI, which ORION already handles with `NASA_API_KEY`; the other feeds (NOAA SWPC, SatNOGS, JPL Horizons, CelesTrak TLE) are open and unauthenticated.
 - `GEMINI_API_KEY` (Google AI Studio) and `GITHUB_TOKEN` (GitHub Models) must be added to `.env.local`; `WATSONX_MODEL_ARCHIVIST` is an optional override.
 
 ---
