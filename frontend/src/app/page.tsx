@@ -545,7 +545,6 @@ export default function Home() {
   const forecasterData    = lastForecaster;
   const sentinelData      = lastSentinel;
   const archivistData     = lastArchivist;
-  const archivistLoading  = loading && (!activeIntent || activeIntent === "archivist");
 
   return (
     <div className="h-screen flex flex-col" style={{ background: "var(--bg)" }}>
@@ -774,7 +773,7 @@ export default function Home() {
                 onSelectItem={openFlare}
               />
               <ArchivistPanel
-                data={result?.intent === "archivist" ? (result as ArchivistData) : null}
+                data={archivistData}
                 loading={loading && (!activeIntent || activeIntent === "archivist")}
                 active={activeIntent === "archivist" || activeIntent === null}
                 dimmed={activeIntent !== null && activeIntent !== "archivist"}
@@ -787,8 +786,6 @@ export default function Home() {
             <AnalyticsView
               forecaster={forecasterData}
               exporting={exporting}
-              archivist={archivistData}
-              archivistLoading={archivistLoading}
             />
           )}
 

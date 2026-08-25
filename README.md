@@ -107,8 +107,8 @@ sequenceDiagram
     participant NeoWs as NASA NeoWs API
     participant DONKI as NASA DONKI API
     participant SB as Supabase pgvector
-    participant Gemini as Google Gemini 2.0 Flash
-    participant GPT4o as GPT-4o (GitHub Models)
+    participant Gemini as Google Gemini 3.5 Flash
+    participant Groq as openai/gpt-oss-120b (Groq)
     participant Granite as IBM Granite-4-h-small
 
     User->>UI: Natural language query
@@ -127,9 +127,9 @@ sequenceDiagram
         Router->>Forecaster: POST { query }
         Forecaster->>DONKI: GET /DONKI/FLR (30-day)
         DONKI-->>Forecaster: Flare events
-        Forecaster->>GPT4o: Summarise flare activity
-        GPT4o-->>UI: ForecasterData + Recharts timeline
-        note over Forecaster,GPT4o: Falls back to watsonx Llama-4 if GPT-4o unavailable
+        Forecaster->>Groq: Summarise flare activity
+        Groq-->>UI: ForecasterData + Recharts timeline
+        note over Forecaster,Groq: Falls back to watsonx Llama-4 if Groq unavailable
     else intent = archivist
         Router->>Archivist: POST { query }
         Archivist->>SB: match_embeddings RPC (cosine similarity)
@@ -158,13 +158,13 @@ ORION V2 distributes AI workloads across **four specialist model providers** —
 | Agent | Primary Model | Provider | Fallback |
 |-------|--------------|----------|---------|
 | **Router** | `llama-4-maverick-17b-128e-instruct-fp8` | IBM watsonx | — |
-| **Sentinel** | `gemini-2.0-flash` | Google AI Studio | watsonx Llama-4 |
-| **Forecaster** | `gpt-4o` | GitHub Models (Azure) | watsonx Llama-4 |
+| **Sentinel** | `gemini-3.5-flash` | Google AI Studio | watsonx Llama-4 |
+| **Forecaster** | `openai/gpt-oss-120b` | Groq | watsonx Llama-4 |
 | **Archivist RAG** | `ibm/granite-4-h-small` | IBM watsonx | watsonx Llama-4 |
 
 - **Granite-4-h-small** was selected for Archivist RAG synthesis after live benchmarking against all available watsonx models — it is the only Granite instruct model active on this account's plan and produces clean, citation-aware prose from retrieved research chunks.
-- **Gemini 2.0 Flash** handles Sentinel summaries for its speed on structured JSON narration.
-- **GPT-4o via GitHub Models** handles Forecaster solar weather narratives for its precise event-timeline reasoning.
+- **Gemini 3.5 Flash** handles Sentinel summaries for its speed on structured JSON narration.
+- **openai/gpt-oss-120b via Groq** handles Forecaster solar weather narratives. This is a reasoning model — it uses internal chain-of-thought before producing output, so the route allocates a 1024-token budget and reads from both `content` and `reasoning` fields in the response.
 - All model calls use plain `fetch()` — no SDK packages required. Rate-limit errors (HTTP 429) are caught and surfaced as friendly messages rather than raw API errors.
 
 ### IBM Docling — PDF Ingestion Pipeline
@@ -270,16 +270,16 @@ NASA_API_KEY=your_nasa_api_key
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
-# Google AI Studio (Gemini 2.0 Flash) — https://aistudio.google.com/app/apikey
+# Google AI Studio (Gemini 3.5 Flash) — https://aistudio.google.com/app/apikey
 # Used by Sentinel for NL summaries — falls back to watsonx if absent
 GEMINI_API_KEY=your_google_ai_studio_api_key
 
-# GitHub Models (GPT-4o via Azure inference) — https://github.com/settings/tokens
+# Groq (openai/gpt-oss-120b) — https://console.groq.com/keys
 # Used by Forecaster for NL summaries — falls back to watsonx if absent
-GITHUB_TOKEN=your_github_personal_access_token
+GROQ_API_KEY=your_groq_api_key
 ```
 
-> **Note:** `.env.example` contains the complete list of required variables. `GEMINI_API_KEY` and `GITHUB_TOKEN` are optional — if absent, those agents fall back to watsonx Llama-4 automatically. There are no Langflow or ngrok variables in V2 — those were V1 only.
+> **Note:** `.env.example` contains the complete list of required variables. `GEMINI_API_KEY` and `GROQ_API_KEY` are optional — if absent, those agents fall back to watsonx Llama-4 automatically. There are no Langflow or ngrok variables in V2 — those were V1 only.
 
 ### 4. Set up Supabase (one-time)
 
@@ -321,8 +321,8 @@ Dashboard available at **http://localhost:3000**.
 | `NASA_API_KEY` | ✅ | NASA Open APIs key (free at api.nasa.gov) |
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key |
-| `GEMINI_API_KEY` | ⚡ optional | Google AI Studio key — Sentinel uses Gemini 2.0 Flash; falls back to watsonx if absent |
-| `GITHUB_TOKEN` | ⚡ optional | GitHub PAT (`models:read`) — Forecaster uses GPT-4o; falls back to watsonx if absent |
+| `GEMINI_API_KEY` | ⚡ optional | Google AI Studio key — Sentinel uses Gemini 3.5 Flash; falls back to watsonx if absent |
+| `GROQ_API_KEY` | ⚡ optional | Groq API key — Forecaster uses `openai/gpt-oss-120b`; falls back to watsonx if absent |
 
 5. Push to `main` — Vercel auto-deploys on every commit. No ngrok, no local processes required.
 
@@ -389,6 +389,9 @@ orion-space-command/
 |   |   +-- TelemetryConsole.tsx         # Live session telemetry log console
 |   +-- src/lib/
 |   |   +-- watsonx.ts                   # IAM token cache + generateText + generateEmbedding
+|   |   +-- groq.ts                      # Groq REST helper — openai/gpt-oss-120b (Forecaster primary)
+|   |   +-- gemini.ts                    # Google Gemini REST helper — gemini-3.5-flash (Sentinel primary)
+|   |   +-- github-models.ts             # GitHub Models REST helper — gpt-4o (utility)
 |   |   +-- supabase.ts                  # Supabase admin client (service-role)
 |   |   +-- exportPdf.ts                 # Client-side PDF mission briefing generator
 +-- langflow/                            # V1 flows (archived for reference)

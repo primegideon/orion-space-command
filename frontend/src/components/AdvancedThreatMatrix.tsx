@@ -18,12 +18,8 @@ import type { SolarWindData } from "@/app/api/solarwind/route";
 
 interface Props {
   forecaster: ForecasterData | null;
-  /** True while the PDF export is in flight — drives compliance loading state */
+  /** True while the PDF export is in flight */
   exporting: boolean;
-  /** Last Archivist RAG result — drives the Compliance RAG monitor */
-  archivist: import("@/components/ArchivistPanel").ArchivistData | null;
-  /** True while the Archivist agent is running */
-  archivistLoading: boolean;
 }
 
 /* ── Shared primitives ────────────────────────────────────────────────────── */
@@ -557,201 +553,6 @@ function CyberSpectrumModule() {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
- *  MODULE 3 — DATA COMPLIANCE GATEWAY (RAG Output Monitor)
- *  Displays the live IBM Docling + Supabase pgvector pipeline state and
- *  the actual watsonx RAG verdict from the last Archivist query.
- * ══════════════════════════════════════════════════════════════════════════*/
-
-type ArchivistData = import("@/components/ArchivistPanel").ArchivistData;
-
-const PIPELINE_STAGES = [
-  { id: "embed",   label: "Vectorizing query…",                  ms: 400  },
-  { id: "pgvec",   label: "Scanning UN OOSA frameworks via pgvector…", ms: 900  },
-  { id: "llm",     label: "IBM watsonx Llama-4 RAG synthesis…",  ms: 1500 },
-  { id: "verdict", label: "Compliance verdict ready",            ms: 2000 },
-];
-
-function ComplianceGatewayModule({
-  archivist,
-  archivistLoading,
-}: {
-  archivist: ArchivistData | null;
-  archivistLoading: boolean;
-}) {
-  // Animate pipeline stages as archivist loads
-  const [stageIdx, setStageIdx] = useState(-1);
-
-  useEffect(() => {
-    if (!archivistLoading) { setStageIdx(-1); return; }
-    setStageIdx(0);
-    const timers = PIPELINE_STAGES.map((s, i) =>
-      setTimeout(() => setStageIdx(i), s.ms)
-    );
-    return () => timers.forEach(clearTimeout);
-  }, [archivistLoading]);
-
-  const conf = archivist?.confidence ?? null;
-  const confPct =
-    conf === "high"   ? 94 :
-    conf === "medium" ? 72 :
-    conf === "low"    ? 41 : null;
-  const confColor =
-    conf === "high"   ? "var(--emerald)" :
-    conf === "medium" ? "var(--amber)"   : "var(--red)";
-
-  const hasResult   = !!archivist && !archivistLoading;
-  const hasError    = !!archivist?.error;
-  const isIdle      = !archivistLoading && !archivist;
-
-  return (
-    <div className="glass rounded-xl p-4 flex flex-col gap-3 h-full">
-      <SectionHeader
-        title="Data Compliance Gateway"
-        sub="IBM Docling · Supabase pgvector · watsonx RAG monitor"
-      />
-
-      {/* ── Idle state ────────────────────────────────────────────────── */}
-      {isIdle && (
-        <div className="flex flex-col flex-1 gap-2">
-          <div className="flex items-center gap-2 mb-1">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)"
-              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-              <path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-            </svg>
-            <span className="font-mono text-[9px] tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.2)" }}>
-              Awaiting query
-            </span>
-          </div>
-          <div className="flex flex-col flex-1 gap-2">
-            {PIPELINE_STAGES.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 px-3 rounded-lg flex-1"
-                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", minHeight: 44 }}>
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "rgba(255,255,255,0.1)" }} />
-                <span className="font-mono text-[9px]" style={{ color: "rgba(255,255,255,0.25)" }}>{s.label}</span>
-                <span className="ml-auto font-mono text-[8px]" style={{ color: "rgba(255,255,255,0.1)" }}>—</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Loading — animate pipeline stages ─────────────────────────── */}
-      {archivistLoading && (
-        <div className="flex flex-col flex-1 gap-2">
-          {PIPELINE_STAGES.map((s, i) => {
-            const done    = i < stageIdx;
-            const active  = i === stageIdx;
-            const col = done ? "var(--emerald)" : active ? "var(--cyan)" : "rgba(255,255,255,0.2)";
-            return (
-              <div key={s.id} className="flex items-center gap-3 px-3 rounded-lg flex-1 transition-all duration-300"
-                style={{
-                  background: active ? "rgba(0,210,230,0.06)" : "rgba(255,255,255,0.02)",
-                  border: `1px solid ${active ? "rgba(0,210,230,0.25)" : "rgba(255,255,255,0.05)"}`,
-                  minHeight: 44,
-                }}>
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0${active ? " animate-pulse" : ""}`}
-                  style={{ background: col }} />
-                <span className="font-mono text-[9px] flex-1" style={{ color: col }}>{s.label}</span>
-                {done   && <span className="font-mono text-[8px] font-bold" style={{ color: "var(--emerald)" }}>✓</span>}
-                {active && <span className="font-mono text-[8px] animate-pulse" style={{ color: "var(--cyan)" }}>…</span>}
-                {!done && !active && <span className="font-mono text-[8px]" style={{ color: "rgba(255,255,255,0.2)" }}>—</span>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Result ────────────────────────────────────────────────────── */}
-      {hasResult && (
-        <div className="flex flex-col flex-1 gap-2">
-
-          {/* Pipeline stages — all complete */}
-          <div className="flex flex-col gap-1.5">
-            {PIPELINE_STAGES.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg"
-                style={{ background: "rgba(52,211,153,0.04)", border: "1px solid rgba(52,211,153,0.1)" }}>
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--emerald)" }} />
-                <span className="font-mono text-[9px] flex-1" style={{ color: "rgba(255,255,255,0.5)" }}>{s.label}</span>
-                <span className="font-mono text-[8px] font-bold" style={{ color: "var(--emerald)" }}>✓</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Divider */}
-          <div className="h-px shrink-0" style={{ background: "rgba(255,255,255,0.05)" }} />
-
-          {/* Confidence — full-width bar card like solar wind rows */}
-          {confPct !== null && !hasError && (
-            <div className="flex flex-col gap-2 px-3 py-3 rounded-lg shrink-0"
-              style={{ background: `${confColor}08`, border: `1px solid ${confColor}22` }}>
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="font-mono text-[8px] tracking-widest uppercase" style={{ color: "var(--muted)" }}>
-                    Vector Retrieval Confidence
-                  </span>
-                  <span className="font-mono text-[22px] font-bold tabular-nums leading-tight" style={{ color: confColor }}>
-                    {confPct}%
-                  </span>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <Badge label={`${conf?.toUpperCase()} confidence`} color={confColor} />
-                  <span className="font-mono text-[8px]" style={{ color: "var(--muted)" }}>
-                    {archivist.sources?.length ?? 0} source{(archivist.sources?.length ?? 0) !== 1 ? "s" : ""} retrieved
-                  </span>
-                </div>
-              </div>
-              {/* Confidence bar */}
-              <div className="w-full rounded-full overflow-hidden" style={{ height: 4, background: "rgba(255,255,255,0.06)" }}>
-                <div className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${confPct}%`, background: confColor }} />
-              </div>
-            </div>
-          )}
-
-          {/* Sources — each on its own row like satellite cards */}
-          {(archivist.sources?.length ?? 0) > 0 && !hasError && (
-            <div className="flex flex-col gap-1.5">
-              <span className="font-mono text-[8px] tracking-widest uppercase" style={{ color: "var(--muted)" }}>
-                Retrieved Sources
-              </span>
-              <div className="flex flex-col gap-1.5">
-                {archivist.sources!.slice(0, 4).map((src, i) => (
-                  <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    <span className="font-mono text-[9px] font-bold shrink-0" style={{ color: "var(--cyan)" }}>
-                      [{String(i + 1).padStart(2, "0")}]
-                    </span>
-                    <span className="font-mono text-[9px] truncate" style={{ color: "rgba(255,255,255,0.65)" }}>
-                      {src}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Error state */}
-          {hasError && (
-            <div className="flex items-start gap-2 px-3 py-3 rounded-lg flex-1"
-              style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)" }}>
-              <span className="font-mono text-[9px]" style={{ color: "var(--red)" }}>
-                ⚠ RAG pipeline error — {archivist.error}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Footer */}
-      <p className="text-[8px] font-mono shrink-0 pt-1" style={{ color: "rgba(255,255,255,0.15)", lineHeight: 1.5 }}>
-        IBM Docling ingestion · Supabase pgvector cosine similarity · watsonx Granite-4 RAG synthesis
-      </p>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════════════════════
  *  MODULE 4 — LIVE SOLAR WIND (NOAA DSCOVR)
  * ══════════════════════════════════════════════════════════════════════════*/
 
@@ -952,8 +753,8 @@ function SolarWindModule() {
  *  EXPORT — top-level layout
  * ══════════════════════════════════════════════════════════════════════════*/
 
-export default function AdvancedThreatMatrix({ forecaster, exporting, archivist, archivistLoading }: Props) {
-  void exporting; // PDF export no longer drives compliance card
+export default function AdvancedThreatMatrix({ forecaster, exporting }: Props) {
+  void exporting;
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
 
@@ -966,12 +767,11 @@ export default function AdvancedThreatMatrix({ forecaster, exporting, archivist,
         <div className="flex-1 h-px" style={{ background: "linear-gradient(270deg, var(--cyan)44, transparent)" }} />
       </div>
 
-      {/* 2×2 grid on wide screens — Solar Wind added as fourth panel */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4" style={{ alignItems: "stretch" }}>
+      {/* 3-panel grid: equal columns side by side */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4" style={{ alignItems: "stretch" }}>
         <OrbitalDebrisModule forecaster={forecaster} />
         <SolarWindModule />
         <CyberSpectrumModule />
-        <ComplianceGatewayModule archivist={archivist} archivistLoading={archivistLoading} />
       </div>
     </div>
   );

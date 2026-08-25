@@ -9,14 +9,11 @@ import {
 import AdvancedThreatMatrix from "./AdvancedThreatMatrix";
 import KpStatusBanner from "./KpStatusBanner";
 import type { ForecasterData } from "./ForecasterPanel";
-import type { ArchivistData } from "./ArchivistPanel";
 import type { AnalyticsResponse, AnalyticsMetrics } from "@/app/api/analytics/route";
 
 interface Props {
   forecaster: ForecasterData | null;
   exporting: boolean;
-  archivist: ArchivistData | null;
-  archivistLoading: boolean;
 }
 
 /* ── Chart style constants ────────────────────────────────────────────────*/
@@ -185,7 +182,7 @@ function buildRadar(m: AnalyticsMetrics | null) {
 
 /* ── Main component ───────────────────────────────────────────────────────*/
 export default function AnalyticsView({
-  forecaster, exporting, archivist, archivistLoading,
+  forecaster, exporting,
 }: Props) {
   const [tab, setTab] = useState<TabId>("historical");
 
@@ -572,8 +569,6 @@ export default function AnalyticsView({
         <AdvancedThreatMatrix
           forecaster={forecaster}
           exporting={exporting}
-          archivist={archivist}
-          archivistLoading={archivistLoading}
         />
       )}
     </div>
