@@ -74,54 +74,53 @@ export default function KpStatusBanner() {
 
   return (
     <div
-      className={`flex items-start gap-3 px-3 py-2.5 rounded-xl${cfg.pulse ? " animate-pulse" : ""}`}
-      style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}
+      className={`flex items-center gap-4 px-3 py-2.5 rounded-xl${cfg.pulse ? " animate-pulse" : ""}`}
+      style={{
+        background: "rgba(255,255,255,0.02)",
+        border: "1px solid rgba(255,255,255,0.07)",
+        borderLeft: `3px solid ${cfg.color}`,
+      }}
     >
-      <span className="shrink-0 text-sm mt-0.5" style={{ color: cfg.color }}>{cfg.icon}</span>
+      {/* Status label + Kp value */}
+      <div className="flex items-center gap-2 shrink-0">
+        <span className="font-mono text-[10px] font-bold tracking-widest uppercase"
+          style={{ color: cfg.color }}>
+          {label}
+        </span>
+        <span className="font-mono text-[11px] font-bold tabular-nums"
+          style={{ color: cfg.color }}>
+          (Kp: {kp})
+        </span>
+      </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-[10px] font-bold tracking-widest uppercase"
-            style={{ color: cfg.color }}>
-            {label}
-          </span>
-          <span className="font-mono text-[11px] font-bold tabular-nums"
-            style={{ color: cfg.color }}>
-            (Kp: {kp})
-          </span>
-        </div>
-        <div className="flex items-center gap-3 mt-1 flex-wrap">
-          <span className="font-mono text-[9px]" style={{ color: "var(--muted)" }}>
-            Updated: {time}
-          </span>
-          <span className="font-mono text-[9px]" style={{ color: "var(--muted)" }}>
-            Source: NOAA SWPC
-          </span>
-          {/* Sparkline — last 8 readings */}
-          <svg width={80} height={14} viewBox={`0 0 80 14`} style={{ flexShrink: 0 }}>
-            {data.history.map((r, i) => {
-              const x = (i / (data.history.length - 1)) * 78 + 1;
-              const barH = Math.max(2, Math.min(14, (r.kp / 9) * 14));
-              const barColor =
-                r.kp >= 7 ? "var(--red)" :
-                r.kp >= 5 ? "#fb923c"    :
-                r.kp >= 4 ? "var(--amber)" : "var(--emerald)";
-              return (
-                <rect
-                  key={i}
-                  x={x - 2}
-                  y={14 - barH}
-                  width={4}
-                  height={barH}
-                  rx={1}
-                  fill={barColor}
-                  opacity={0.8}
-                />
-              );
-            })}
-          </svg>
-          <span className="font-mono text-[9px]" style={{ color: "var(--muted)" }}>24h trend</span>
-        </div>
+      {/* Divider */}
+      <div className="w-px h-4 shrink-0" style={{ background: "rgba(255,255,255,0.08)" }} />
+
+      {/* Meta */}
+      <span className="font-mono text-[9px] shrink-0" style={{ color: "var(--muted)" }}>
+        Updated: {time}
+      </span>
+      <span className="font-mono text-[9px] shrink-0" style={{ color: "var(--muted)" }}>
+        Source: NOAA SWPC
+      </span>
+
+      {/* Sparkline */}
+      <div className="flex items-center gap-1.5 ml-auto shrink-0">
+        <span className="font-mono text-[9px]" style={{ color: "var(--muted)" }}>24h</span>
+        <svg width={64} height={14} viewBox="0 0 64 14">
+          {data.history.map((r, i) => {
+            const x = (i / (data.history.length - 1)) * 60 + 1;
+            const barH = Math.max(2, Math.min(14, (r.kp / 9) * 14));
+            const barColor =
+              r.kp >= 7 ? "var(--red)" :
+              r.kp >= 5 ? "#fb923c"    :
+              r.kp >= 4 ? "var(--amber)" : "var(--emerald)";
+            return (
+              <rect key={i} x={x - 2} y={14 - barH} width={4} height={barH} rx={1}
+                fill={barColor} opacity={0.7} />
+            );
+          })}
+        </svg>
       </div>
     </div>
   );

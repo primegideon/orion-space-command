@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
     let modelUsed = "fallback";
     try {
       const raw = await generateTextGroq(SUMMARY_PROMPT(items, period), {
-        maxTokens: 200,
+        maxTokens: 1024,
         temperature: 0.3,
       });
       const cleaned = cleanSummary(raw);

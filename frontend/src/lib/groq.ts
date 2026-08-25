@@ -18,14 +18,16 @@ interface GroqOptions {
 }
 
 interface OpenAIChatResponse {
-  choices: { message: { content: string } }[];
+  choices: { message: { content: string; reasoning?: string } }[];
 }
 
 export async function generateTextGroq(
   prompt: string,
   options: GroqOptions = {}
 ): Promise<string> {
-  const { maxTokens = 512, temperature = 0.3 } = options;
+  // gpt-oss-120b is a reasoning model — budget must be large enough that
+  // reasoning tokens don't consume the entire allocation before it can reply.
+  const { maxTokens = 1024, temperature = 0.3 } = options;
 
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY is not set");
@@ -51,11 +53,15 @@ export async function generateTextGroq(
   }
 
   const data = (await res.json()) as OpenAIChatResponse;
-  const text = data.choices?.[0]?.message?.content;
+  const msg  = data.choices?.[0]?.message;
 
-  if (typeof text !== "string" || text.trim() === "") {
+  // gpt-oss-120b places its answer in `content`; when the budget is tight it
+  // may only populate `reasoning` — accept either, preferring content.
+  const text = msg?.content?.trim() || msg?.reasoning?.trim() || "";
+
+  if (!text) {
     throw new Error("Unexpected Groq response shape — no content in choices");
   }
 
-  return text.trim();
+  return text;
 }
