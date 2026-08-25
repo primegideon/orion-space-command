@@ -1,13 +1,13 @@
 /**
  * Google Gemini helper — server-side only (Node.js runtime)
  *
- * Wraps the Google AI Studio REST API for Gemini 2.0 Flash.
+ * Wraps the Google AI Studio REST API for Gemini 3.5 Flash.
  * Uses plain fetch — no SDK dependency required.
  *
  * Falls back gracefully: callers should catch errors and fall through to watsonx.
  */
 
-const GEMINI_MODEL = "gemini-3.6-flash";
+const GEMINI_MODEL = "gemini-3.5-flash";
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 interface GeminiOptions {
@@ -59,7 +59,7 @@ export async function generateTextGemini(
 
   const data = (await res.json()) as GeminiResponse;
 
-  // Gemini 3.6 Flash uses thinking tokens — content.parts may be empty on short
+  // Gemini 3.5 Flash uses thinking tokens — content.parts may be empty on short
   // maxOutputTokens budgets. Search all candidates/parts for any text.
   let text: string | undefined;
   for (const candidate of data.candidates ?? []) {

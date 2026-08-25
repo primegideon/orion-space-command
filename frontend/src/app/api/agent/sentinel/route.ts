@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
         temperature: 0.3,
       });
       const cleaned = cleanSummary(raw);
-      if (cleaned.length > 20) { summary = cleaned; modelUsed = "gemini-3.6-flash"; }
+      if (cleaned.length > 20) { summary = cleaned; modelUsed = "gemini-3.5-flash"; }
     } catch (geminiErr) {
       console.warn("[sentinel] gemini summary failed, falling back to watsonx:", geminiErr);
       try {
