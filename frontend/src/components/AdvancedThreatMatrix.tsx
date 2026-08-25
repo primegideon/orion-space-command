@@ -683,7 +683,7 @@ function ComplianceGatewayModule({
 
           {/* Confidence — full-width bar card like solar wind rows */}
           {confPct !== null && !hasError && (
-            <div className="flex flex-col gap-2 px-3 py-3 rounded-lg flex-1"
+            <div className="flex flex-col gap-2 px-3 py-3 rounded-lg shrink-0"
               style={{ background: `${confColor}08`, border: `1px solid ${confColor}22` }}>
               <div className="flex items-center justify-between">
                 <div className="flex flex-col">
@@ -711,14 +711,14 @@ function ComplianceGatewayModule({
 
           {/* Sources — each on its own row like satellite cards */}
           {(archivist.sources?.length ?? 0) > 0 && !hasError && (
-            <div className="flex flex-col gap-1.5 flex-1">
-              <span className="font-mono text-[8px] tracking-widest uppercase shrink-0" style={{ color: "var(--muted)" }}>
+            <div className="flex flex-col gap-1.5">
+              <span className="font-mono text-[8px] tracking-widest uppercase" style={{ color: "var(--muted)" }}>
                 Retrieved Sources
               </span>
-              <div className="flex flex-col gap-1.5 flex-1 justify-between">
+              <div className="flex flex-col gap-1.5">
                 {archivist.sources!.slice(0, 4).map((src, i) => (
-                  <div key={i} className="flex items-center gap-3 px-3 rounded-lg flex-1"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", minHeight: 36 }}>
+                  <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
                     <span className="font-mono text-[9px] font-bold shrink-0" style={{ color: "var(--cyan)" }}>
                       [{String(i + 1).padStart(2, "0")}]
                     </span>
