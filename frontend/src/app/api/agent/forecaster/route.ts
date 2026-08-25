@@ -179,6 +179,7 @@ export async function POST(req: NextRequest) {
 
     // Try GPT-4o via GitHub Models first; fall back to watsonx (non-fatal)
     let modelUsed = "fallback";
+    let gptErrMsg = "";
     try {
       const raw = await generateTextGPT4o(SUMMARY_PROMPT(items, period), {
         maxTokens: 200,
@@ -187,7 +188,8 @@ export async function POST(req: NextRequest) {
       const cleaned = cleanSummary(raw);
       if (cleaned.length > 20) { summary = cleaned; modelUsed = "gpt-4o"; }
     } catch (gptErr) {
-      console.warn("[forecaster] gpt-4o summary failed, falling back to watsonx:", gptErr);
+      gptErrMsg = gptErr instanceof Error ? gptErr.message : String(gptErr);
+      console.warn("[forecaster] gpt-4o summary failed, falling back to watsonx:", gptErrMsg);
       try {
         const raw = await generateText(SUMMARY_PROMPT(items, period), {
           maxNewTokens: 200,
@@ -202,6 +204,8 @@ export async function POST(req: NextRequest) {
 
     const response: ForecasterData = {
       agent: "forecaster",
+      // Expose GPT error temporarily for diagnosis — remove after fix
+      ...(gptErrMsg && modelUsed !== "gpt-4o" ? { error: `[gpt-debug] ${gptErrMsg}` } : {}),
       items,
       count: items.length,
       summary,

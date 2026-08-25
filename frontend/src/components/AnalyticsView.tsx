@@ -248,30 +248,85 @@ export default function AnalyticsView({
   return (
     <div className="flex flex-col gap-5 py-2 animate-fade-in">
 
-      {/* ── Tab bar ─────────────────────────────────────────────────────── */}
-      <div className="flex gap-1 p-1 rounded-xl w-fit"
-        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-        {TABS.map((t) => {
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className="px-4 py-1.5 rounded-lg text-[11px] font-mono font-semibold tracking-widest uppercase transition-all duration-200"
-              style={{
-                background: active ? "rgba(0,210,230,0.12)" : "transparent",
-                border:     active ? "1px solid rgba(0,210,230,0.28)" : "1px solid transparent",
-                color:      active ? "var(--cyan)" : "var(--muted)",
-              }}
-            >
-              {t.id === "threat" && (
-                <span className="mr-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle"
-                  style={{ background: "var(--red)", boxShadow: "0 0 5px var(--red)", marginBottom: 1 }} />
-              )}
-              {t.label}
-            </button>
-          );
-        })}
+      {/* ── Mode selector — full width ───────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-2">
+        {/* Historical Analytics */}
+        <button
+          onClick={() => setTab("historical")}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200"
+          style={{
+            background: tab === "historical" ? "rgba(0,210,230,0.07)" : "rgba(255,255,255,0.02)",
+            border:     tab === "historical" ? "1px solid rgba(0,210,230,0.3)" : "1px solid rgba(255,255,255,0.07)",
+          }}
+        >
+          {/* Icon */}
+          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: tab === "historical" ? "rgba(0,210,230,0.12)" : "rgba(255,255,255,0.04)" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke={tab === "historical" ? "var(--cyan)" : "rgba(255,255,255,0.3)"}
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[11px] font-mono font-bold tracking-widest uppercase"
+              style={{ color: tab === "historical" ? "var(--cyan)" : "rgba(255,255,255,0.5)" }}>
+              Historical
+            </span>
+            <span className="text-[9px] font-mono mt-0.5"
+              style={{ color: "rgba(255,255,255,0.25)" }}>
+              30-day flare · CME · radar analytics
+            </span>
+          </div>
+          {tab === "historical" && (
+            <span className="ml-auto shrink-0 text-[8px] font-mono px-1.5 py-0.5 rounded"
+              style={{ background: "rgba(0,210,230,0.1)", border: "1px solid rgba(0,210,230,0.2)", color: "var(--cyan)" }}>
+              ACTIVE
+            </span>
+          )}
+        </button>
+
+        {/* Threat Matrix */}
+        <button
+          onClick={() => setTab("threat")}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200"
+          style={{
+            background: tab === "threat" ? "rgba(248,113,113,0.06)" : "rgba(255,255,255,0.02)",
+            border:     tab === "threat" ? "1px solid rgba(248,113,113,0.28)" : "1px solid rgba(255,255,255,0.07)",
+          }}
+        >
+          {/* Live pulse dot */}
+          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: tab === "threat" ? "rgba(248,113,113,0.1)" : "rgba(255,255,255,0.04)" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke={tab === "threat" ? "var(--red)" : "rgba(255,255,255,0.3)"}
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-mono font-bold tracking-widest uppercase"
+                style={{ color: tab === "threat" ? "var(--red)" : "rgba(255,255,255,0.5)" }}>
+                Threat Matrix
+              </span>
+              {/* Live pulse indicator */}
+              <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse"
+                style={{ background: "var(--red)" }} />
+            </div>
+            <span className="text-[9px] font-mono mt-0.5"
+              style={{ color: "rgba(255,255,255,0.25)" }}>
+              Orbital debris · solar wind · RF spectrum
+            </span>
+          </div>
+          {tab === "threat" && (
+            <span className="ml-auto shrink-0 text-[8px] font-mono px-1.5 py-0.5 rounded"
+              style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "var(--red)" }}>
+              LIVE
+            </span>
+          )}
+        </button>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════
