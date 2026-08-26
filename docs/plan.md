@@ -1,12 +1,14 @@
-# ORION — Development Plan
+# ORION — Development Plan (V1 — Archived)
 ## Orbital Research & Intelligence Orchestration Network
 ### IBM AI Builders Challenge — August Space Theme
+
+> ⚠️ **This is the archived V1 plan.** V1 used Langflow + local Chroma as the orchestration and vector store layer. It has been fully superseded by the V2 serverless cloud-native architecture (see `docs/v2-plan.md`). All phases below are complete. The production system running at https://orion-space-command.vercel.app is V2.
 
 ---
 
 ## Top-Level Overview
 
-ORION is a Deep Space Command Center web dashboard built on a multi-agent architecture. A Next.js frontend provides a "Mission Control" chat interface backed by three specialized AI agents orchestrated via Langflow. IBM watsonx (Granite) powers all LLM reasoning. The three agents are:
+ORION is a Deep Space Command Center web dashboard built on a multi-agent architecture. A Next.js frontend provides a "Mission Control" chat interface backed by three specialized AI agents orchestrated via Langflow. IBM watsonx (Llama-4 Maverick) powers all LLM reasoning. The three agents are:
 
 - **The Sentinel** — queries the NASA NeoWs API to track near-Earth asteroids.
 - **The Forecaster** — queries the NASA DONKI API to monitor solar flare activity.
@@ -14,7 +16,7 @@ ORION is a Deep Space Command Center web dashboard built on a multi-agent archit
 
 The user types a natural-language query into a single chat bar. A Langflow master router flow classifies intent, dispatches to the correct sub-agent, and returns a structured JSON response. The Next.js frontend renders each agent's result in its own dedicated panel below the chat bar.
 
-**Deployment targets:** Vercel (frontend) + local Python process (Langflow).
+**Deployment targets:** Vercel (frontend) + local Python process (Langflow) — replaced in V2 by fully serverless Next.js routes on Vercel.
 
 ---
 

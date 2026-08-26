@@ -315,15 +315,18 @@ export async function exportBriefing(
    * ══════════════════════════════════════════════════════════════════════*/
   sectionHead("2. Satellite Insurance & Financial Risk Exposure");
 
+  txt("Note: Financial figures are modelled estimates derived from publicly available industry reports (Lloyd's of London, Marsh McLennan, NOAA SWPC). They are not official NASA or NOAA outputs. Actual losses vary with satellite density, orbit, and operator insurance coverage.", 7.5, C.muted);
+  nl(6);
+
   const RISK_W = [220, COL - 220];
   tableRow(["EVENT / TRIGGER", "ASSESSMENT"], RISK_W, C.accent, true, true);
   const risks = [
-    ["Comm disruption (X-class flare)",       "HIGH — ~$50M/day industry exposure"],
-    ["LEO collision probability (PHO pass)",   "ELEVATED — insurer watch status"],
-    ["GPS signal degradation (M5+ flare)",     "MODERATE — aviation/maritime impact"],
-    ["Radiation damage (SAA transit)",         "LOW — hardened shielding nominal"],
-    ["Satellite drag anomaly (elevated F10.7)","MODERATE — orbit decay compensation cost"],
-    ["HF/UHF spectrum congestion",            "LOW-MODERATE — backup link surcharges"],
+    ["Comm disruption (X-class flare)",       "HIGH — $30–50M/day estimated exposure (Lloyd's comms outage benchmark)"],
+    ["LEO collision probability (PHO pass)",   "ELEVATED — insurer watch status; $10–25M contingency reserve typical"],
+    ["GPS signal degradation (M5+ flare)",     "MODERATE — $5–15M/day aviation/maritime signal-loss impact estimate"],
+    ["Radiation damage (SAA transit)",         "LOW — hardened shielding nominal; anomaly cost $1–5M per incident"],
+    ["Satellite drag anomaly (elevated F10.7)","MODERATE — $2–8M orbit decay compensation per affected asset"],
+    ["HF/UHF spectrum congestion",            "LOW-MODERATE — backup link surcharges $500K–2M per event"],
   ];
   risks.forEach(([evt, asm], i) => {
     tableRow([evt, asm], RISK_W, C.body, false, i % 2 === 0);

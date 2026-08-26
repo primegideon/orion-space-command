@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
         ? `No solar flares detected between ${period.start} and ${period.end}. Solar activity is quiet.`
         : `${items.length} solar flare(s) detected from ${period.start} to ${period.end}.`;
 
-    // Try Groq Llama-3.3-70b first; fall back to watsonx (non-fatal)
+    // Try Groq gpt-oss-120b first; fall back to watsonx (non-fatal)
     let modelUsed = "fallback";
     try {
       const raw = await generateTextGroq(SUMMARY_PROMPT(items, period), {
@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
         temperature: 0.3,
       });
       const cleaned = cleanSummary(raw);
-      if (cleaned.length > 20) { summary = cleaned; modelUsed = "llama-3.3-70b-groq"; }
+      if (cleaned.length > 20) { summary = cleaned; modelUsed = "gpt-oss-120b-groq"; }
     } catch (groqErr) {
       console.warn("[forecaster] groq summary failed, falling back to watsonx:", groqErr);
       try {

@@ -41,40 +41,42 @@ ORION closes this gap with a single natural-language chat interface that routes 
 
 ## Solution Description
 
-ORION is a **Next.js Bento-box command center** — a mission-control-style dashboard where a single chat input dispatches queries to three purpose-built AI agents. Each agent owns a distinct data domain and renders its results in a dedicated panel below the chat bar.
+ORION is a **Next.js mission-control command center** — a glassmorphic dark-space dashboard where a single chat input dispatches queries to three purpose-built AI agents. Each agent owns a distinct data domain and renders its results in a dedicated panel. Six navigation views expose live telemetry, historical analytics, fleet tracking, ground relay status, and orbital situational awareness — all driven by real external data sources with no mocked values anywhere.
 
 ### The Sentinel — Near-Earth Asteroid Tracker
 
-The Sentinel agent queries the **NASA NeoWs (Near Earth Object Web Service)** API for asteroid close-approach data across a rolling 7-day window. Asteroid names, estimated diameters, miss distances, and potential-hazard classifications are extracted and passed to IBM watsonx Llama-4 Maverick for a concise situational briefing.
+The Sentinel agent queries the **NASA NeoWs (Near Earth Object Web Service)** API for asteroid close-approach data across a rolling 7-day window. Asteroid names, estimated diameters, miss distances, and potential-hazard (PHO) classifications are extracted, sorted by approach date, and passed to **Google Gemini 3.5 Flash** for a concise situational briefing. The panel renders an AI-generated threat summary, a scrollable asteroid table with miss distances and velocity, and a slide-out detail drawer with the raw payload and full orbital parameters for any selected object. A **3D orbital canvas** (Three.js / React Three Fiber) renders each asteroid's trajectory as a Bezier arc coloured red for PHOs and cyan for safe passes.
+
+When a Potentially Hazardous Object is detected, the system automatically triggers a full-screen **Mitigation Banner** (`ELEVATED` → `SEVERE` → `CRITICAL` depending on miss distance and flare co-occurrence).
 
 <p align="center">
   <img src="./assets/sentinel-ui.png" alt="The Sentinel — Asteroid Tracker Panel" width="90%">
   <br/>
-  <em>The Sentinel panel: live asteroid approach data with AI-generated situational summary.</em>
+  <em>The Sentinel panel: live NASA NeoWs asteroid approach data with AI-generated Gemini situational summary, miss-distance table, and detail drawer.</em>
 </p>
 
 ---
 
 ### The Forecaster — Solar Weather Monitor
 
-The Forecaster agent queries the **NASA DONKI (Database Of Notifications, Knowledge, Information)** API for solar flare events over the past 30 days. Flare classifications (A through X), peak times, and active region IDs are parsed into structured cards, then synthesised by watsonx into a space-weather advisory.
+The Forecaster agent queries the **NASA DONKI (Database Of Notifications, Knowledge, Information)** API for solar flare events over the past 30 days. Flare classifications (B through X), peak times, source locations, and active region IDs are parsed into structured event cards, then synthesised by **openai/gpt-oss-120b via Groq** into a space-weather advisory. The panel renders the AI narrative summary, individual flare cards (each clickable to open the detail drawer), and **Recharts time-series charts** — a daily frequency bar chart colour-coded by severity class and a flare intensity scatter plot. A **Risk Matrix** below the Forecaster shows live satellite communications, power grid, and radiation risk bars driven by the most recent flare data.
 
 <p align="center">
   <img src="./assets/forecaster-ui.png" alt="The Forecaster — Solar Weather Panel" width="90%">
   <br/>
-  <em>The Forecaster panel: DONKI solar flare timeline with AI-generated activity summary.</em>
+  <em>The Forecaster panel: NASA DONKI flare event cards with AI-generated Groq advisory and slide-out detail drawer showing raw flare payload.</em>
 </p>
 
 ---
 
 ### The Archivist — Astrophysics Research Assistant
 
-The Archivist is a full **Retrieval-Augmented Generation (RAG)** pipeline. A curated corpus of arXiv astrophysics PDFs — covering asteroid detection, solar flare forecasting, and exoplanetary research — was parsed offline using **IBM Docling**, chunked, embedded with `sentence-transformers/all-MiniLM-L6-v2`, and persisted to a **Supabase pgvector** cloud database (939 chunks, HNSW cosine similarity index). At query time, the top-5 relevant chunks are retrieved and passed to IBM watsonx Llama-4 Maverick for grounded, citation-backed answer synthesis.
+The Archivist is a full **Retrieval-Augmented Generation (RAG)** pipeline. A curated corpus of arXiv astrophysics PDFs — covering asteroid detection, solar flare forecasting, and exoplanetary research — was parsed offline using **IBM Docling**, chunked into 512-token segments with 64-token overlap, embedded with `sentence-transformers/all-MiniLM-L6-v2`, and persisted to a **Supabase pgvector** cloud database (939 chunks, HNSW cosine similarity index). At query time, the top-5 most relevant chunks are retrieved and passed to **IBM Granite-4-h-small** via watsonx for grounded, citation-backed answer synthesis. Answers include a trailing confidence rating (`high / medium / low`) and a list of source arXiv paper titles.
 
 <p align="center">
   <img src="./assets/archivist-ui.png" alt="The Archivist — RAG Research Panel" width="90%">
   <br/>
-  <em>The Archivist panel: natural-language answers grounded in arXiv literature with source citations.</em>
+  <em>The Archivist panel: natural-language answers grounded in arXiv literature with arXiv source citations and confidence rating.</em>
 </p>
 
 ---
@@ -162,9 +164,9 @@ ORION V2 distributes AI workloads across **four specialist model providers** —
 | **Forecaster** | `openai/gpt-oss-120b` | Groq | watsonx Llama-4 |
 | **Archivist RAG** | `ibm/granite-4-h-small` | IBM watsonx | watsonx Llama-4 |
 
-- **Granite-4-h-small** was selected for Archivist RAG synthesis after live benchmarking against all available watsonx models — it is the only Granite instruct model active on this account's plan and produces clean, citation-aware prose from retrieved research chunks.
+- **Granite-4-h-small** was selected for Archivist RAG synthesis after live benchmarking against all available watsonx models — it produces clean, citation-aware prose from retrieved research chunks.
 - **Gemini 3.5 Flash** handles Sentinel summaries for its speed on structured JSON narration.
-- **openai/gpt-oss-120b via Groq** handles Forecaster solar weather narratives. This is a reasoning model — it uses internal chain-of-thought before producing output, so the route allocates a 1024-token budget and reads from both `content` and `reasoning` fields in the response.
+- **openai/gpt-oss-120b via Groq** handles Forecaster solar weather narratives. The route allocates a 1024-token budget and reads from both `content` and `reasoning` fields in the response to handle any internal chain-of-thought output.
 - All model calls use plain `fetch()` — no SDK packages required. Rate-limit errors (HTTP 429) are caught and surfaced as friendly messages rather than raw API errors.
 
 ### IBM Docling — PDF Ingestion Pipeline
@@ -186,15 +188,16 @@ Every V2 sub-agent route handler returns a consistent JSON envelope regardless o
 
 ```json
 {
-  "agent":   "sentinel | forecaster | archivist",
-  "items":   [...],
-  "summary": "...",
-  "sources": ["..."],
-  "error":   null
+  "agent":      "sentinel | forecaster | archivist",
+  "items":      [...],
+  "summary":    "...",
+  "sources":    ["..."],
+  "model_used": "gemini-3.5-flash | gpt-oss-120b-groq | granite-4-h-small | fallback",
+  "error":      null
 }
 ```
 
-The Next.js frontend reads `agent` to determine which panel to activate, then renders `items` in a data table or card grid and `summary` / `sources` as the AI narrative block.
+The Next.js frontend reads `agent` to determine which panel to activate, renders `items` in a data table or card grid, and displays `summary` / `sources` as the AI narrative block. The `model_used` field drives the model label shown in the UI.
 
 ---
 
@@ -202,7 +205,7 @@ The Next.js frontend reads `agent` to determine which panel to activate, then re
 
 ORION was built using **IBM Bob as the primary development tool** throughout all phases of the project — V1 prototyping through V2 cloud-native migration — functioning not as a passive code autocomplete, but as an active engineering collaborator that held full context across the entire codebase.
 
-The architectural vision was established up front: three specialist agents, IBM watsonx as the LLM backbone, and a Next.js bento-box dashboard as the user interface. IBM Bob was then heavily utilised to translate that architecture into working, production-quality code at speed — and to drive the full V2 serverless migration.
+The architectural vision was established up front: three specialist agents, IBM watsonx as the LLM backbone, and a Next.js mission-control dashboard as the user interface. IBM Bob was then heavily utilised to translate that architecture into working, production-quality code at speed — and to drive the full V2 serverless migration.
 
 **Specific contributions where IBM Bob was the primary tool:**
 
@@ -218,9 +221,11 @@ The architectural vision was established up front: three specialist agents, IBM 
 
 - **3D Orbital Canvas & Solar Charts.** The Three.js / React Three Fiber interactive asteroid trajectory visualisation (`OrbitalCanvas.tsx`) and the Recharts solar flare time-series charts (`FlareChart.tsx`) were built with Bob, including the miss-distance-to-scene-unit mapping, Bezier trajectory arcs, and severity-colour-coded scatter plots.
 
+- **Multi-Model AI Fleet & Groq Integration.** The Groq (`openai/gpt-oss-120b`) integration for the Forecaster — including live diagnosis of the `content`/`reasoning` response shape and the 1024-token budget requirement — was diagnosed and fixed with Bob. The Gemini 3.5 Flash helper for the Sentinel and the Granite-4-h-small RAG synthesis path were also implemented collaboratively.
+
 - **Model Benchmarking.** The `scripts/test_model_candidates.py` benchmarking script was written with Bob to systematically evaluate available IBM watsonx models against the production routing prompt before committing to a model choice.
 
-- **Project Infrastructure.** The phased development plans (`orion-plan.md`, `orion-v2-plan.md`), `.env.example` hygiene, `.gitignore` configuration, Vercel deployment troubleshooting, and environment variable management were all handled collaboratively with Bob.
+- **Project Infrastructure.** The phased development plans (`docs/plan.md`, `docs/v2-plan.md`, `docs/upgrade-plan.md`), `.env.example` hygiene, `.gitignore` configuration, Vercel deployment troubleshooting, and environment variable management were all handled collaboratively with Bob.
 
 ---
 
@@ -279,7 +284,7 @@ GEMINI_API_KEY=your_google_ai_studio_api_key
 GROQ_API_KEY=your_groq_api_key
 ```
 
-> **Note:** `.env.example` contains the complete list of required variables. `GEMINI_API_KEY` and `GROQ_API_KEY` are optional — if absent, those agents fall back to watsonx Llama-4 automatically. There are no Langflow or ngrok variables in V2 — those were V1 only.
+> **Note:** `GEMINI_API_KEY` and `GROQ_API_KEY` are optional — if absent, those agents fall back to watsonx Llama-4 automatically. There are no Langflow or ngrok variables in V2 — those were V1 only.
 
 ### 4. Set up Supabase (one-time)
 
@@ -330,7 +335,7 @@ Dashboard available at **http://localhost:3000**.
 
 ## Live Data Feeds
 
-Every secondary dashboard panel is driven by a real external data source — no mocked or static data anywhere in the system.
+Every dashboard panel is driven by a real external data source — no mocked or static data anywhere in the system.
 
 | Panel | Route | Source | Cadence |
 |-------|-------|--------|---------|
@@ -343,7 +348,7 @@ Every secondary dashboard panel is driven by a real external data source — no 
 | Sentinel NEOs | `/api/agent/sentinel` → NASA NeoWs | NASA NeoWs 7-day feed | on query |
 | Forecaster Flares | `/api/agent/forecaster` → NASA DONKI | NASA DONKI 30-day FLR feed | on query |
 
-**SatNOGS streaming strategy:** The SatNOGS API returns a ~2.8 MB plain array of all stations. Rather than downloading the full payload, the `/api/satnogs` route streams the response, parses station objects as chunks arrive, and cancels the connection once 300 online candidates are collected. These are then spread across 5 longitude bands (7 per band) to ensure a globally distributed map — avoiding the European cluster that results from taking the first N by station ID.
+**SatNOGS streaming strategy:** The SatNOGS API returns a ~2.8 MB plain array of all stations. Rather than downloading the full payload, the `/api/satnogs` route streams the response, parses station objects as chunks arrive, and cancels the connection once 300 online candidates are collected. These are then spread across 5 longitude bands to ensure a globally distributed map — avoiding the European cluster that results from taking the first N by station ID.
 
 ---
 
@@ -360,21 +365,25 @@ orion-space-command/
 |   |   +-- globals.css                  # Tailwind base + CSS custom properties
 |   |   +-- api/agent/
 |   |   |   +-- route.ts                 # Master intent router (keyword + watsonx)
-|   |   |   +-- sentinel/route.ts        # NeoWs fetch + watsonx summary
-|   |   |   +-- forecaster/route.ts      # DONKI fetch + watsonx summary
-|   |   |   +-- archivist/route.ts       # Supabase pgvector RAG
+|   |   |   +-- sentinel/route.ts        # NeoWs fetch + Gemini summary
+|   |   |   +-- forecaster/route.ts      # DONKI fetch + Groq (gpt-oss-120b) summary
+|   |   |   +-- archivist/route.ts       # Supabase pgvector RAG + Granite synthesis
 |   |   +-- api/analytics/route.ts       # 30-day flare/CME/NEO analytics aggregator
 |   |   +-- api/donki/route.ts           # Live NOAA DONKI flare + R-Scale feed
 |   |   +-- api/dsn/route.ts             # NASA Deep Space Network XML parser
+|   |   +-- api/horizons/route.ts        # NASA JPL Horizons ephemeris endpoint
 |   |   +-- api/kp/route.ts              # NOAA SWPC planetary Kp-index feed
 |   |   +-- api/logs/route.ts            # Supabase system_logs reader
 |   |   +-- api/satellites/route.ts      # CelesTrak satcat orbital parameters
+|   |   +-- api/satnogs/route.ts         # SatNOGS Network ground station feed
+|   |   +-- api/solarwind/route.ts       # NOAA DSCOVR real-time solar wind
+|   |   +-- api/tle/route.ts             # CelesTrak TLE + SGP4 propagation
 |   +-- src/components/
 |   |   +-- SentinelPanel.tsx            # Asteroid table + AI threat summary
 |   |   +-- ForecasterPanel.tsx          # Flare cards + Recharts charts
 |   |   +-- ArchivistPanel.tsx           # RAG answer + source citations
-|   |   +-- AnalyticsView.tsx            # 30-day historical charts + protocol cards
-|   |   +-- AdvancedThreatMatrix.tsx     # Orbital debris, spectrum & compliance modules
+|   |   +-- AnalyticsView.tsx            # 30-day historical charts + threat matrix
+|   |   +-- AdvancedThreatMatrix.tsx     # Orbital debris, solar wind & RF spectrum (3-col)
 |   |   +-- ConstellationFleet.tsx       # Live CelesTrak satellite fleet table
 |   |   +-- MissionActivityLog.tsx       # Supabase query audit log + routing stats
 |   |   +-- GroundRelayGrid.tsx          # NASA DSN world map + station table
@@ -409,6 +418,10 @@ orion-space-command/
 |   +-- _gen_flows.py                    # V1 flow scaffolding helper
 |   +-- _verify_chroma.py                # V1 Chroma vector store verifier
 |   +-- _verify_flows.py                 # V1 Langflow flow verifier
++-- docs/
+|   +-- plan.md                          # V1 phased development plan (archived)
+|   +-- v2-plan.md                       # V2 cloud-native engineering roadmap
+|   +-- upgrade-plan.md                  # Multi-model AI fleet & live data upgrade plan
 +-- data/
 |   +-- pdfs/                            # arXiv source PDFs
 |   +-- chroma_db/                       # Local Chroma vector store (V1)
@@ -416,43 +429,252 @@ orion-space-command/
 +-- requirements.txt                     # Python dependencies
 +-- .env.example                         # Environment variable template
 +-- LICENSE                              # MIT License
-+-- orion-plan.md                        # V1 phased development plan
-+-- orion-v2-plan.md                     # V2 cloud-native engineering roadmap
 ```
 
 ---
 
 ## 📖 How to Use & Read This System
 
-ORION is designed as a multi-view aerospace command terminal. Here is how to navigate the interface:
+ORION is a multi-view aerospace command terminal designed for space scientists, mission planners, satellite operators, educators, and space-tech developers who need live situational awareness and research synthesis in one place.
 
-**The Global Header**
-The top bar is your persistent mission status. It tracks the active ground relay uplink (pulsing green dot), global threat status badge, live UTC clock and Mission Elapsed Time (MET), and your operator clearance level.
+---
 
-**Voice & Text Command**
-Use the main input bar to query the system. Click the microphone icon to dictate natural language queries (e.g., *"Show me approaching asteroids"*), then click **Transmit** to route the query through the watsonx intent classifier. The system automatically selects the correct specialist agent — no manual routing required.
+### The Global Header
 
-**Navigation Rail (Left Sidebar)**
-Click the `‹` chevron to expand or collapse the sidebar at any time.
+<p align="center">
+  <img src="./assets/01-telemetry-core.png" alt="Telemetry Core — Live Dashboard" width="90%">
+  <br/>
+  <em>The primary command view on load — three idle agent panels with radar sweep, waveform, and document-scan animations. The header shows live uplink, status, UTC clock, MET, operator ID, and clearance level.</em>
+</p>
 
-| View | Icon | Description |
-|------|------|-------------|
-| **Telemetry Core** | Signal waves | The primary live-fire dashboard featuring the Sentinel (NEO tracking), Forecaster (solar weather + risk model), and Archivist (RAG research database). |
-| **Threat & Risk** | Star shield | Toggles between 30-day historical data charts and a live heuristic analysis of orbital debris drag, cybersecurity/spectrum integrity, and international data compliance. |
-| **Constellation** | Globe/orbit | A fleet overview monitoring orbital bands, Altitude (km), Inclination (degrees), Orbital Period (minutes), and Orbital Band (LEO/MEO/GEO) of all tracked satellites. |
-| **Mission Log** | Document | An audit trail of recent LLM queries showing agent routing decisions, end-to-end latency, live Routing Success Rate, and the live telemetry log from the current session. |
-| **Ground Relay** | Antenna | An equirectangular world map and status table showing real-time uplink/downlink status, data rates, elevation angles, and next contact windows for global Deep Space Network (DSN) nodes. |
-| **Orbit Viewer** | Orbit rings | A dual-purpose situational awareness hub featuring an interactive NASA Eyes 3D macro-visualization and a secure routing bridge to the JPL Small-Body Database for micro-level threat verification. |
+The persistent top bar shows the complete mission status at a glance:
 
-**Utilities (Bottom of Sidebar)**
+- **UPLINK: GLOBAL DSN-01** — active ground relay node. Green pulse = connected, reflecting the live NASA DSN feed.
+- **STATUS badge** — system-wide threat level: `NOMINAL` (green) → `ELEVATED` (amber) → `STORM` (orange) → `SEVERE` (red). Driven by live NOAA Kp index and active Mitigation Banner triggers.
+- **UTC clock + MET** — live UTC time and Mission Elapsed Time counting from mission epoch (2025-01-01T00:00:00Z).
+- **OP-ID / CLEARANCE** — operator ID and clearance level for the current session.
+- **IBM WATSONX: ONLINE [latency]ms** — live watsonx API ping result shown on the Threat & Risk view.
 
-| Button | Description |
-|--------|-------------|
-| **System Status** | Opens a modal that simulates latency probes against all six API dependencies (NASA NeoWs, DONKI, Supabase, IBM watsonx, IAM, Docling) and reports heuristic latency and uptime. |
-| **Export PDF** | Generates a client-side PDF mission briefing including mission timestamp, active threat status, satellite insurance risk assessment, and the full telemetry log from the current session. When clicked, the Data Compliance Gateway in the Threat Matrix view animates through its regulatory verification sequence. |
+---
 
-**Mitigation Banner**
-When a live query returns an X-class or M5+ solar flare, or a PHO asteroid approach, a colour-coded alert banner automatically appears above the dashboard grid. Severity levels are `WATCH → ELEVATED → SEVERE → CRITICAL`, and when both a flare and asteroid trigger simultaneously the level is automatically escalated. The banner is dismissible and re-appears on each new query.
+### Voice & Text Command Bar
+
+The full-width input bar is the primary interface. Type or speak any natural-language query and press **Transmit**:
+
+- **Text input** — free-form natural language. Typos, informal phrasing, and partial queries all work. The master router runs a fast keyword classifier before calling watsonx, so most queries route with near-zero LLM latency.
+- **Voice input** — click the microphone icon to activate the Web Speech API (Chrome/Edge). Speak your query and it transcribes directly into the bar.
+- **Auto-routing** — never select which agent to call. `"show asteroids"` → Sentinel. `"any flares recently?"` → Forecaster. `"what does research say about kinetic impactors?"` → Archivist.
+
+---
+
+### Navigation Rail (Left Sidebar)
+
+Click the `‹` chevron to expand or collapse. Six views are available:
+
+---
+
+#### 🛰 Telemetry Core — Primary Live Dashboard
+
+The default view. Three agent panels side-by-side, each with idle animations while awaiting a query:
+
+**Sentinel** (left) — Radar sweep at idle. After a NEO query:
+- AI-generated threat summary (Gemini 3.5 Flash): total asteroid count, closest approach, PHO flags
+- Scrollable table: name, close approach date, miss distance (km), diameter (km), velocity (km/h), hazard flag
+- Click any row → **Detail Panel** slide-out: full orbital parameters and raw payload JSON
+- 3D orbital canvas: Earth at centre, Bezier asteroid arcs coloured red (PHO) / cyan (safe)
+
+**Forecaster** (centre) — Waveform pulse at idle. After a solar weather query:
+- AI-generated advisory (openai/gpt-oss-120b via Groq): flare count, peak class, operational risk
+- Flare event cards: class badge (B/C/M/X colour-coded), begin→peak→end times, source location, active region
+- Click any card → **Detail Panel** with full flare JSON payload
+- **Risk Matrix** below: three live bars — Satellite Communications, Power Grid, Radiation Exposure — driven by the current flare class and Kp
+
+**Archivist** (right) — Document-scan at idle; shows "939 chunks indexed". After a research query:
+- AI-synthesised answer (IBM Granite-4-h-small): grounded strictly in retrieved arXiv chunks
+- Source list: arXiv paper titles used for synthesis
+- Confidence badge: `HIGH` (green) / `MEDIUM` (amber) / `LOW` (red)
+
+**Mitigation Banner** — Auto-triggers on X-class / M5+ flare or PHO detection:
+- `WATCH` → `ELEVATED` → `SEVERE` → `CRITICAL` (escalates when flare + asteroid trigger simultaneously)
+- Shows specific trigger: asteroid name, miss distance, flare class
+- Dismissible with ×; reappears on each new query if conditions persist
+
+---
+
+#### ⚡ Threat & Risk — Historical Analytics + Advanced Threat Matrix
+
+Two sub-tabs: **Historical** and **Threat Matrix**.
+
+<p align="center">
+  <img src="./assets/02-historical-analytics.png" alt="Historical Analytics View" width="90%">
+  <br/>
+  <em>Historical tab: live NOAA Kp banner (NOMINAL, Kp 0.3), 30-day summary metrics (13 flares, 0 X-class, 1862 km/s peak CME, 20 PHO approaches), Recharts flare frequency line chart (B/C/M/X classes), and Risk Radar comparing live telemetry against historical baselines.</em>
+</p>
+
+**Historical tab** — 30-day aggregates from NASA DONKI + NeoWs:
+- **Kp Status Banner** — live NOAA Kp with geomagnetic status (NOMINAL / ELEVATED / STORM / SEVERE), Kp value, timestamp, 24-hour sparkline
+- **Summary metrics** — 30-day flare count, X-class count, peak CME speed (km/s), PHO approach count
+- **Flare Frequency chart** — Recharts line chart: daily event counts per class (B=grey, C=yellow, M=orange, X=red) over 30 days. Hover for date + count + peak class.
+- **Risk Radar** — multi-axis radar chart: live telemetry (blue) vs historical baseline (amber dashed) across X-Flare, CME, PHO, GeoMag, Radiation axes
+
+<p align="center">
+  <img src="./assets/02b-cme-mitigation.png" alt="CME Mitigation Protocols" width="90%">
+  <br/>
+  <em>Historical tab (scrolled): 30-day CME propagation speed bar chart (peak 1,862 km/s) and Standard Mitigation Protocols — HF Radio Blackout Response and PHO Proximity Alert both ACTIVE based on live DONKI data.</em>
+</p>
+
+Scrolling further reveals:
+- **CME Propagation Speed chart** — 30-day bar chart of CME speeds (km/s) from DONKI
+- **Standard Mitigation Protocols** — four rule-based cards that activate automatically:
+  - *Radiation Shielding Protocol* — X-class flare or S3+ event
+  - *HF Radio Blackout Response* — R3+ radio blackout (M5+ flare)
+  - *PHO Proximity Alert* — any PHO in 30-day close-approach window
+  - *Geomagnetic Storm Prep* — Kp ≥ 5
+
+<p align="center">
+  <img src="./assets/03-threat-matrix.png" alt="Advanced Threat Matrix" width="90%">
+  <br/>
+  <em>Threat Matrix tab: three equal-width live heuristic modules — Orbital Debris & Drag (CelesTrak + Kp), Cybersecurity & Spectrum (DONKI R-Scale + ITU bands), Solar Wind (NOAA DSCOVR RTSW).</em>
+</p>
+
+**Threat Matrix tab** — three live modules side-by-side:
+
+*Orbital Debris & Drag* (left) — CelesTrak satcat + NOAA Kp:
+- Current Kp + thermospheric drag density multiplier
+- Per-satellite cards (ISS, CSS, HST, GPS, GOES, Landsat…): altitude, period, inclination, computed drag (×10⁻⁷ m/s²), status
+
+*Cybersecurity & Spectrum* (centre) — DONKI R-Scale telemetry:
+- Live Kp + DONKI R-Scale (R0–R5)
+- Recent DONKI flare events (7-day) with R-Scale badges
+- RF Spectrum Load per ITU band (UHF, L-band, S-band, X-band, Ka-band): load % and NOMINAL / ELEVATED / DEGRADED / CONGESTED
+
+*Solar Wind* (right) — NOAA DSCOVR RTSW, updated every 60 s:
+- **Bz (nT)** — interplanetary magnetic field z-component. Negative (southward) Bz drives geomagnetic storms
+- **|Bt| (nT)** — total magnetic field
+- **ρ (p/cm³)** — proton density
+- **V (km/s)** — solar wind speed
+- Visual Bz gauge bar and Geomagnetic Impact Assessment
+
+---
+
+#### 🛰 Constellation — Satellite Fleet Monitor
+
+<p align="center">
+  <img src="./assets/04-constellation-fleet.png" alt="Constellation Fleet View" width="90%">
+  <br/>
+  <em>Constellation Fleet: 12 curated satellites across LEO/MEO/GEO/HEO. Live CelesTrak satcat data. Band filter buttons top-right (LEO / MEO / GEO / HEO).</em>
+</p>
+
+12 curated satellites sourced live from CelesTrak satcat + TLE SGP4 propagation:
+
+- **Band filter** — top-right buttons: LEO / MEO / GEO / HEO
+- **Columns** — Satellite / NORAD ID, Band (colour-coded), Altitude (km) · Inclination (°), Period (min), Altitude bar
+- **Satellites** — ISS, CSS (TIANHE), HST, NOAA 20, GOES 16, GOES 18, Landsat 9, GPS IIF-10, GPS III SV04, Galileo FOC-7, IRIDIUM 180, SES-1
+- **Live TLE propagation** — SGP4 gives real-time sub-satellite lat/lon and velocity
+
+**Relevant for:** Satellite operators, space insurance actuaries, and orbital analysts cross-referencing drag/radiation conditions from the Threat Matrix.
+
+---
+
+#### 📋 Mission Log — Query Audit Trail
+
+<p align="center">
+  <img src="./assets/05-mission-log.jpg" alt="Mission Activity Log" width="90%">
+  <br/>
+  <em>Mission Log: live Supabase system_logs — 67 total queries, 11.4s avg latency, 67.2% routing success rate. Each row shows query text, route path, agent, latency, and status. PHO mitigation banner active above.</em>
+</p>
+
+Every AI query persisted to Supabase `system_logs`:
+
+- **Summary metrics** — Total Queries, Avg Latency, Routing Success Rate, Errors
+- **Filter** — All Agents / Sentinel / Forecaster / Archivist
+- **Table** — Timestamp (UTC), Query, Route path (`router → sentinel → NeoWs`), Agent badge, Latency, Status (OK / WARN / ERROR)
+- **Telemetry Console** — collapsible bottom bar logging every client-side event in real time
+
+**Relevant for:** Developers debugging routing, researchers tracking query history, mission commanders reviewing activity logs.
+
+---
+
+#### 📡 Ground Relay — Deep Space Network Monitor
+
+<p align="center">
+  <img src="./assets/06-ground-relay-map.png" alt="Ground Relay Map" width="90%">
+  <br/>
+  <em>Ground Relay Grid: equirectangular SVG map of global DSN complexes (Goldstone, Madrid, Canberra). Live NASA DSN XML feed refreshed every 15 seconds. Green = active, amber = standby.</em>
+</p>
+
+<p align="center">
+  <img src="./assets/07-ground-relay-table.png" alt="Ground Relay Table" width="90%">
+  <br/>
+  <em>DSN dish table: Goldstone complex — DSS26 actively tracking Juno at 931 Gkm with X-band downlink at 26.0 kbps. DSS23 on standby for LUCY. DSS24 on standby for SOHO.</em>
+</p>
+
+Live telemetry from the NASA DSN XML feed, refreshed every 15 seconds:
+
+- **Summary strip** — Active dishes, Standby, Maintenance, Active craft, Total downlink Mbps
+- **Active spacecraft badges** — real identifiers: JNO (Juno), MRO (Mars Reconnaissance Orbiter), TGO (ExoMars), PSYC (Psyche), VGR1 (Voyager 1), etc.
+- **World map** — SVG equirectangular projection with pulsing status dots
+- **Dish table** — per-complex, per-dish: DSS ID, status, elevation/azimuth, spacecraft, signal type, data rate, range (Gkm)
+- **SatNOGS overlay** — community ground stations augment the map with global coverage
+
+**Relevant for:** Mission controllers, deep space communication engineers, and space enthusiasts tracking real spacecraft contacts.
+
+---
+
+#### 🌍 Orbit Viewer — Situational Awareness Hub
+
+<p align="center">
+  <img src="./assets/08-orbit-viewer.jpg" alt="Orbit Viewer" width="90%">
+  <br/>
+  <em>Orbit Viewer: NASA Eyes on the Solar System live 3D visualization (Earth, Venus, Mars, Parker Solar Probe, Europa Clipper). Target list: 20 current NEOs. Active target 2005 PJ2 (PHO) selected — miss distance 7,077,379 km.</em>
+</p>
+
+Dual-panel situational awareness:
+
+- **NASA Eyes on the Solar System** — live 3D heliocentric visualization: planets, active NASA spacecraft, current asteroid target. Fully interactive pan/zoom/rotate.
+- **OPEN FULL SCREEN** — launches the visualization full-browser
+- **JPL ORBIT DATA** — opens the NASA JPL Small-Body Database entry for the selected asteroid
+- **Target list** — scrollable list of all current NEOs with miss distances and dates; click any to switch the Eyes view
+- **PHO flag** — `○ PHO` badge on hazardous objects
+
+**Relevant for:** Planetary scientists, students, science communicators, and mission planners who need to visualise the heliocentric geometry of a close-approach event.
+
+---
+
+### Utilities (Bottom of Sidebar)
+
+#### System Status Modal
+
+<p align="center">
+  <img src="./assets/08-system-status.png" alt="System Status Modal" width="60%">
+  <br/>
+  <em>System Status: all six dependencies LIVE — NASA NeoWs (240ms, 99.8%), NASA DONKI (210ms, 99.5%), Supabase pgvector (45ms, 100%), IBM watsonx AI (748ms, 99.9%), IBM IAM (56ms, 100%), IBM Docling (146ms, 98.2%).</em>
+</p>
+
+Probes all six external API dependencies from the client:
+
+| Service | What it checks |
+|---------|---------------|
+| **NASA NeoWs** | Near-Earth Object Web Service — asteroid feed |
+| **NASA DONKI** | Space Weather Database — flare/CME feed |
+| **Supabase pgvector** | RAG document store — vector similarity search |
+| **IBM watsonx AI** | LLM inference — Llama-4 Maverick routing |
+| **IBM IAM** | OAuth2 token service — watsonx auth |
+| **IBM Docling** | Document ingestion pipeline — PDF parsing |
+
+Each row shows LIVE / DEGRADED / DOWN, latency (ms), and uptime (%). Click outside to dismiss.
+
+#### Export PDF
+
+Generates a client-side PDF mission briefing (no server roundtrip):
+
+- Mission timestamp and MET
+- Current global threat status and active agent summary (sanitised LLM output)
+- **Satellite Insurance & Financial Risk Exposure** table — modelled estimates based on publicly available industry reports (Lloyd's of London, Marsh McLennan, NOAA SWPC). Values are ranges reflecting variability by satellite density, orbit, and coverage (e.g. $30–50M/day for X-class comm disruption). Not official NASA or NOAA outputs.
+- Live constellation fleet status (from `/api/satellites`)
+- Orbital threat matrix with live Kp and PHO table (from `/api/kp` + last Sentinel query)
+- Hardware mitigation protocol recommendations
+- Full current-session telemetry console log
 
 ---
 
@@ -462,63 +684,70 @@ When a live query returns an X-class or M5+ solar flare, or a PHO asteroid appro
 <p align="center">
 <img src="./assets/01-telemetry-core.png" alt="Telemetry Core — Live Dashboard" width="90%">
 <br/>
-<em>The primary command view: Sentinel asteroid tracker, Forecaster solar weather, and Archivist RAG panel side-by-side.</em>
+<em>The primary command view on load: Sentinel (radar sweep idle), Forecaster (waveform idle), Archivist (document scan idle — 939 chunks indexed). Mission clock and uplink active in the header.</em>
 </p>
 
 ### Historical Analytics — 30-Day Flare Frequency
 <p align="center">
 <img src="./assets/02-historical-analytics.png" alt="Historical Analytics View" width="90%">
 <br/>
-<em>30-day flare frequency line chart and multi-axis live risk radar comparing current telemetry against historical baselines.</em>
+<em>Threat & Risk → Historical: Kp NOMINAL (0.3), 13 flares, 0 X-class, 1862 km/s peak CME, 20 PHO approaches. Flare frequency line chart and Risk Radar live vs baseline.</em>
 </p>
 
-### Threat Posture — CME & Mitigation Protocols
+### Threat Posture — CME Propagation & Mitigation Protocols
 <p align="center">
 <img src="./assets/02b-cme-mitigation.png" alt="CME Mitigation Protocols" width="90%">
 <br/>
-<em>30-day CME propagation speed bar chart and automated rule-based hardware mitigation protocol triggers.</em>
+<em>30-day CME propagation speed bar chart (peak 1,862 km/s). HF Radio Blackout Response (R3 blackout — M5+ flare) and PHO Proximity Alert both ACTIVE.</em>
 </p>
 
 ### Advanced Threat Matrix
 <p align="center">
 <img src="./assets/03-threat-matrix.png" alt="Advanced Threat Matrix" width="90%">
 <br/>
-<em>Three-module heuristic analysis: Orbital Debris & Drag (driven by live CelesTrak + Kp data), Cybersecurity & Spectrum monitor, and Data Compliance Gateway.</em>
+<em>Three equal-width live heuristic modules: Orbital Debris & Drag (ISS/CSS/HST drag calculations), Cybersecurity & Spectrum (R3 Strong Radio Blackout, ITU band degradation), Solar Wind (NOAA DSCOVR Bz/Bt/density/speed).</em>
 </p>
 
 ### Constellation Fleet
 <p align="center">
 <img src="./assets/04-constellation-fleet.png" alt="Constellation Fleet View" width="90%">
 <br/>
-<em>Full fleet telemetry table across LEO/MEO/GEO/HEO orbital bands with Altitude (km), Inclination (degrees), Orbital Period (minutes), and Orbital Band (LEO/MEO/GEO) per satellite — sourced live from CelesTrak.</em>
+<em>12 satellites: ISS (418 km LEO), CSS (390 km LEO), HST (472 km LEO), GOES 16/18 (35,787 km GEO), Landsat 9 (703 km LEO). Live CelesTrak data, HEO band filter active.</em>
 </p>
 
 ### Mission Activity Log
 <p align="center">
 <img src="./assets/05-mission-log.jpg" alt="Mission Activity Log" width="90%">
 <br/>
-<em>Audit trail of recent watsonx queries with agent routing history, latency metrics, live Routing Success Rate, and live current-session console output.</em>
+<em>67 queries, 11.4s avg latency, 67.2% success rate. Rows show full route paths (router → sentinel → NeoWs, router → forecaster → DONKI) with per-query latency and status. PHO mitigation banner active.</em>
 </p>
 
 ### Ground Relay Grid — World Map
 <p align="center">
 <img src="./assets/06-ground-relay-map.png" alt="Ground Relay Map" width="90%">
 <br/>
-<em>Equirectangular projection of global ground station coverage. Pulsing rings indicate active uplink/downlink nodes.</em>
+<em>6 active dishes, 3 standby, 6 maintenance, 6 active spacecraft (JNO, MRO, M01O, TGO, PSYC, VGR1). 1.24 Mbps total downlink. Goldstone and Madrid on the equirectangular map.</em>
 </p>
 
-### Ground Relay Grid — Station Table
+### Ground Relay Grid — DSN Dish Table
 <p align="center">
 <img src="./assets/07-ground-relay-table.png" alt="Ground Relay Table" width="90%">
 <br/>
-<em>DSN/ESA/JAXA/ISRO/SSC/KSAT station status table with live data rates, elevation angles, frequency bands, and next contact windows.</em>
+<em>Goldstone: DSS26 (BOTH — Juno, 931 Gkm, X-band 26.0 kbps downlink), DSS23 (STANDBY — LUCY, 806 Gkm), DSS24 (STANDBY — SOHO). Madrid complex below.</em>
 </p>
 
 ### Orbit Viewer — Situational Awareness
 <p align="center">
 <img src="./assets/08-orbit-viewer.jpg" alt="Orbit Viewer" width="90%">
 <br/>
-<em>Standalone 3D solar system macro-visualization paired with a secure data bridge to the JPL Small-Body Database for threat verification.</em>
+<em>NASA Eyes on the Solar System: Earth, Venus, Mars, Parker Solar Probe, Europa Clipper, STEREO Ahead. 20 current NEOs in target list. Active: 2005 PJ2 (PHO) — 7,077,379 km miss distance.</em>
+</p>
+
+### System Status Modal
+<p align="center">
+<img src="./assets/08-system-status.png" alt="System Status Modal" width="60%">
+<br/>
+<em>All six dependencies LIVE: NASA NeoWs 240ms / 99.8%, NASA DONKI 210ms / 99.5%, Supabase 45ms / 100%, IBM watsonx 748ms / 99.9%, IBM IAM 56ms / 100%, IBM Docling 146ms / 98.2%.</em>
 </p>
 
 ---
@@ -571,11 +800,24 @@ When a live query returns an X-class or M5+ solar flare, or a PHO asteroid appro
 
 ---
 
+## Who Is ORION For?
+
+| User | Use Case |
+|------|----------|
+| **Space scientists & heliophysicists** | Query live DONKI flare data, get AI-synthesised advisories, cross-reference with arXiv research on solar flare prediction models |
+| **Planetary defense researchers** | Monitor live NeoWs PHO approaches, view 3D orbital geometry, query research literature on deflection strategies |
+| **Satellite operators & insurers** | Assess thermospheric drag on specific LEO assets, monitor RF band degradation, review CME propagation speed trends, export PDF risk briefings |
+| **Mission planners & flight controllers** | Track live DSN dish activity, identify active spacecraft contacts, export PDF mission briefings |
+| **Educators & science communicators** | Use natural-language queries to explain space weather and NEO concepts backed by real data and cited arXiv literature |
+| **Developers & AI engineers** | Reference architecture for multi-agent AI systems with IBM watsonx, Groq, Gemini, Supabase pgvector RAG, and serverless Next.js route handlers |
+
+---
+
 ## Secrets Hygiene
 
 - `frontend/.env.local` — gitignored by default.
 - Root `.env` — gitignored.
-- **Never commit** `NASA_API_KEY`, `WATSONX_API_KEY`, or `WATSONX_PROJECT_ID`.
+- **Never commit** `NASA_API_KEY`, `WATSONX_API_KEY`, `WATSONX_PROJECT_ID`, or `GROQ_API_KEY`.
 - `.env.example` contains only placeholder values and is safe to commit.
 
 ---

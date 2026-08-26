@@ -22,11 +22,11 @@ The result is a zero-ops deployment: `git push` → Vercel builds → live globa
 
 | Phase | Name | Pillar | Status |
 |-------|------|--------|--------|
-| 1 | Serverless Migration | Rip out Langflow, wire watsonx directly | [ ] pending |
-| 2 | Cloud Vector Database | Supabase + pgvector, migrate Chroma corpus | [ ] pending |
-| 3 | 3D Orbital Canvas | Three.js asteroid trajectory rendering | [ ] pending |
-| 4 | Solar Weather Charts | Recharts flare time-series visualisation | [ ] pending |
-| 5 | Multi-Agent Data Fusion | Cross-agent compound query pipeline | [ ] pending |
+| 1 | Serverless Migration | Rip out Langflow, wire watsonx directly | [x] done |
+| 2 | Cloud Vector Database | Supabase + pgvector, migrate Chroma corpus | [x] done |
+| 3 | 3D Orbital Canvas | Three.js asteroid trajectory rendering | [x] done |
+| 4 | Solar Weather Charts | Recharts flare time-series visualisation | [x] done |
+| 5 | Multi-Agent Data Fusion | Cross-agent compound query pipeline | [ ] not built — deprioritised |
 
 ---
 
@@ -46,7 +46,9 @@ sequenceDiagram
     participant NeoWs as NASA NeoWs API
     participant DONKI as NASA DONKI API
     participant Supabase as Supabase<br/>(pgvector)
-    participant Granite as IBM watsonx<br/>(Llama-4 Maverick)
+    participant Gemini as Google Gemini 3.5 Flash
+    participant Groq as openai/gpt-oss-120b (Groq)
+    participant Granite as IBM Granite-4-h-small<br/>(watsonx)
 
     User->>UI: Natural language query
     UI->>Router: POST /api/agent/route { query }
@@ -57,16 +59,18 @@ sequenceDiagram
         Router->>Sentinel: POST /api/agent/sentinel { subQuery }
         Sentinel->>NeoWs: GET /neo/rest/v1/feed
         NeoWs-->>Sentinel: Raw NEO JSON
-        Sentinel->>Granite: Summarise asteroid data
-        Granite-->>Sentinel: { items, summary }
+        Sentinel->>Gemini: Summarise asteroid data
+        Gemini-->>Sentinel: { items, summary }
         Sentinel-->>UI: SentinelData JSON
+        note over Sentinel,Gemini: Falls back to watsonx Llama-4 if Gemini unavailable
     else intent = forecaster
         Router->>Forecaster: POST /api/agent/forecaster { subQuery }
         Forecaster->>DONKI: GET /DONKI/FLR
         DONKI-->>Forecaster: Raw flare JSON
-        Forecaster->>Granite: Summarise flare data
-        Granite-->>Forecaster: { items, summary }
+        Forecaster->>Groq: Summarise flare data (1024 tokens, reasoning model)
+        Groq-->>Forecaster: { items, summary }
         Forecaster-->>UI: ForecasterData JSON
+        note over Forecaster,Groq: Falls back to watsonx Llama-4 if Groq unavailable
     else intent = archivist
         Router->>Archivist: POST /api/agent/archivist { subQuery }
         Archivist->>Supabase: match_embeddings RPC (cosine similarity)
@@ -74,6 +78,7 @@ sequenceDiagram
         Archivist->>Granite: RAG synthesis (chunks + query)
         Granite-->>Archivist: { answer, sources, confidence }
         Archivist-->>UI: ArchivistData JSON
+        note over Archivist,Granite: Falls back to watsonx Llama-4 if Granite unavailable
     end
 
     UI->>UI: Render active panel + 3D canvas / charts
@@ -153,14 +158,16 @@ Return only valid JSON: {"intent": "sentinel"|"forecaster"|"archivist", "query":
 
 ### Environment variables (Vercel — V2)
 
-| Variable | Description |
-|----------|-------------|
-| `WATSONX_API_KEY` | IBM Cloud API key |
-| `WATSONX_PROJECT_ID` | watsonx.ai project ID |
-| `WATSONX_URL` | `https://us-south.ml.cloud.ibm.com` |
-| `NASA_API_KEY` | NASA Open APIs key |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `WATSONX_API_KEY` | ✅ | IBM Cloud API key |
+| `WATSONX_PROJECT_ID` | ✅ | watsonx.ai project ID |
+| `WATSONX_URL` | ✅ | `https://us-south.ml.cloud.ibm.com` |
+| `NASA_API_KEY` | ✅ | NASA Open APIs key |
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key (server-side only) |
+| `GEMINI_API_KEY` | ⚡ optional | Google AI Studio key — Sentinel uses Gemini 3.5 Flash; falls back to watsonx if absent |
+| `GROQ_API_KEY` | ⚡ optional | Groq API key — Forecaster uses `openai/gpt-oss-120b`; falls back to watsonx if absent |
 
 `LANGFLOW_URL`, `LANGFLOW_FLOW_ID`, `SENTINEL_FLOW_ID`, `FORECASTER_FLOW_ID`, `ARCHIVIST_FLOW_ID`, and `LANGFLOW_API_KEY` are all removed.
 
@@ -423,9 +430,11 @@ Recharts components are fully customisable. All chart colours use the existing C
 
 ## Pillar 5 — Multi-Agent Data Fusion
 
+> **Status: Not built — deprioritised.** The routing architecture, agent contracts, and keyword router were expanded (Pillars 1–4 are all complete), but the fusion pipeline and `FusionPanel.tsx` were not implemented. The master router does not currently emit `intent: "fusion"`. This remains a potential future enhancement.
+
 ### Vision
 
-V1 routes every query to exactly one agent. V2 introduces **compound queries** that require cross-agent context — for example:
+V1 routes every query to exactly one agent. V2 introduced a plan for **compound queries** that require cross-agent context — for example:
 
 > *"Is solar activity this week correlated with any of the approaching asteroids?"*
 
@@ -512,11 +521,11 @@ Cite relevant factors from space weather physics.
 
 ### No local processes required
 
-After V2 is complete, the only thing needed to run ORION is:
+The only thing needed to run ORION is:
 ```
 git push origin main
 ```
-No `python -m langflow run`. No `ngrok http 7861`. No local Python environment at runtime.
+No `python -m langflow run`. No `ngrok http 7861`. No local Python environment at runtime. This is fully achieved in the current production deployment.
 
 ### Secrets hygiene
 
@@ -528,17 +537,7 @@ The V2 API response shapes (`SentinelData`, `ForecasterData`, `ArchivistData`) a
 
 ### Branch strategy
 
-```
-main                          ← V1 locked, live on Vercel
-└── feature/orion-v2-architecture
-    ├── pillar/1-serverless-migration
-    ├── pillar/2-supabase-pgvector
-    ├── pillar/3-orbital-canvas
-    ├── pillar/4-flare-charts
-    └── pillar/5-multi-agent-fusion
-```
-
-Each pillar is developed on its own sub-branch and merged into `feature/orion-v2-architecture` via PR before the full V2 is merged to `main`.
+All V2 pillars were developed on `main` directly (single-developer project). The `feature/orion-v2-architecture` branching strategy described here was the plan; in practice `main` is now V2 production.
 
 ### Dependency additions (frontend)
 

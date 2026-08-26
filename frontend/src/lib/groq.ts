@@ -25,8 +25,6 @@ export async function generateTextGroq(
   prompt: string,
   options: GroqOptions = {}
 ): Promise<string> {
-  // gpt-oss-120b is a reasoning model — budget must be large enough that
-  // reasoning tokens don't consume the entire allocation before it can reply.
   const { maxTokens = 1024, temperature = 0.3 } = options;
 
   const apiKey = process.env.GROQ_API_KEY;
@@ -54,9 +52,6 @@ export async function generateTextGroq(
 
   const data = (await res.json()) as OpenAIChatResponse;
   const msg  = data.choices?.[0]?.message;
-
-  // gpt-oss-120b places its answer in `content`; when the budget is tight it
-  // may only populate `reasoning` — accept either, preferring content.
   const text = msg?.content?.trim() || msg?.reasoning?.trim() || "";
 
   if (!text) {
