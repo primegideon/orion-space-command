@@ -7,6 +7,7 @@
 > **IBM AI Builders Challenge · August 2026 · Theme: Advance Space Exploration with AI**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-orion--space--command.vercel.app-38bdf8?style=flat-square&logo=vercel)](https://orion-space-command.vercel.app)
+[![Sample Queries](https://img.shields.io/badge/Sample%20Queries-try%20these%20↓-6366f1?style=flat-square)](#-sample-mission-queries)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![IBM watsonx](https://img.shields.io/badge/IBM-watsonx.ai-be95ff?style=flat-square)](https://www.ibm.com/watsonx)
 [![Supabase](https://img.shields.io/badge/Supabase-pgvector-3ecf8e?style=flat-square&logo=supabase)](https://supabase.com)
@@ -45,7 +46,7 @@ ORION is a **Next.js mission-control command center** — a glassmorphic dark-sp
 
 ### The Sentinel — Near-Earth Asteroid Tracker
 
-The Sentinel agent queries the **NASA NeoWs (Near Earth Object Web Service)** API for asteroid close-approach data across a rolling 7-day window. Asteroid names, estimated diameters, miss distances, and potential-hazard (PHO) classifications are extracted, sorted by approach date, and passed to **Google Gemini 3.5 Flash** for a concise situational briefing. The panel renders an AI-generated threat summary, a scrollable asteroid table with miss distances and velocity, and a slide-out detail drawer with the raw payload and full orbital parameters for any selected object. A **3D orbital canvas** (Three.js / React Three Fiber) renders each asteroid's trajectory as a Bezier arc coloured red for PHOs and cyan for safe passes.
+The Sentinel agent queries the **NASA NeoWs (Near Earth Object Web Service)** API for asteroid close-approach data across a rolling 7-day window. Asteroid names, estimated diameters, miss distances, and potential-hazard (PHO) classifications are extracted, sorted by approach date, and passed to **Google Gemini 3.5 Flash** for a concise situational briefing. The panel renders an AI-generated threat summary, a scrollable asteroid table with miss distances and velocity, and a slide-out detail drawer with the raw payload and full orbital parameters for any selected object.
 
 When a Potentially Hazardous Object is detected, the system automatically triggers a full-screen **Mitigation Banner** (`ELEVATED` → `SEVERE` → `CRITICAL` depending on miss distance and flare co-occurrence).
 
@@ -78,6 +79,16 @@ The Archivist is a full **Retrieval-Augmented Generation (RAG)** pipeline. A cur
   <br/>
   <em>The Archivist panel: natural-language answers grounded in arXiv literature with arXiv source citations and confidence rating.</em>
 </p>
+
+> **Try it on the [live demo](https://orion-space-command.vercel.app)** — type any of these into the command bar and press Transmit:
+>
+> 🛰️ `give me a planetary defense briefing` · `which asteroid has the smallest miss distance this week?`
+>
+> ☀️ `have there been any X-class flares recently?` · `what's the risk to satellites from solar activity?`
+>
+> 📚 `what does research say about asteroid deflection?` · `explain the Torino scale`
+>
+> → [Full query list](#-sample-mission-queries)
 
 ---
 
@@ -481,7 +492,7 @@ The default view. Three agent panels side-by-side, each with idle animations whi
 - AI-generated threat summary (Gemini 3.5 Flash): total asteroid count, closest approach, PHO flags
 - Scrollable table: name, close approach date, miss distance (km), diameter (km), velocity (km/h), hazard flag
 - Click any row → **Detail Panel** slide-out: full orbital parameters and raw payload JSON
-- 3D orbital canvas: Earth at centre, Bezier asteroid arcs coloured red (PHO) / cyan (safe)
+- Click **JPL DATA** on any row → opens the NASA JPL Small-Body Database entry for that asteroid in a new tab
 
 **Forecaster** (centre) — Waveform pulse at idle. After a solar weather query:
 - AI-generated advisory (openai/gpt-oss-120b via Groq): flare count, peak class, operational risk
@@ -531,6 +542,8 @@ Scrolling further reveals:
   - *PHO Proximity Alert* — any PHO in 30-day close-approach window
   - *Geomagnetic Storm Prep* — Kp ≥ 5
 
+**Why it matters:** A single solar flare reading or asteroid approach number tells you nothing without context. The Historical tab exists to answer "is this normal?" — surfacing whether today's Kp reading is routine or an outlier, whether this month's flare count is elevated relative to the baseline, and whether the current PHO window is busier than usual. The Mitigation Protocols translate that context into concrete actions: they fire automatically when thresholds are crossed, so operators don't have to remember what an R3 blackout means for HF communications — the system tells them what to do.
+
 <p align="center">
   <img src="./assets/03-threat-matrix.png" alt="Advanced Threat Matrix" width="90%">
   <br/>
@@ -555,6 +568,8 @@ Scrolling further reveals:
 - **V (km/s)** — solar wind speed
 - Visual Bz gauge bar and Geomagnetic Impact Assessment
 
+**Why it matters:** The Threat Matrix answers a question no single NASA feed can: "what is the combined operational risk right now?" Orbital drag tells satellite operators whether their station-keeping budget is being eaten by a geomagnetic storm. The RF spectrum module tells ground station engineers which frequency bands are degraded before they attempt an uplink. The Solar Wind panel tells space weather analysts whether incoming Bz is southward — the key precursor to a geomagnetic storm — minutes before it arrives. Together, these three panels give a holistic threat picture that previously required three separate expert tools.
+
 ---
 
 #### 🛰 Constellation — Satellite Fleet Monitor
@@ -572,7 +587,7 @@ Scrolling further reveals:
 - **Satellites** — ISS, CSS (TIANHE), HST, NOAA 20, GOES 16, GOES 18, Landsat 9, GPS IIF-10, GPS III SV04, Galileo FOC-7, IRIDIUM 180, SES-1
 - **Live TLE propagation** — SGP4 gives real-time sub-satellite lat/lon and velocity
 
-**Relevant for:** Satellite operators, space insurance actuaries, and orbital analysts cross-referencing drag/radiation conditions from the Threat Matrix.
+**Why it matters:** When the Threat Matrix shows elevated Kp or X-class flares, operators need to know which satellites are currently in exposed orbits. The Constellation view lets you immediately cross-reference which LEO and GEO assets are at altitude during a solar or geomagnetic event, informing safing procedures, antenna stow decisions, and insurance exposure assessments. **Relevant for:** Satellite operators, space insurance actuaries, and orbital analysts.
 
 ---
 
@@ -591,7 +606,7 @@ Every AI query persisted to Supabase `system_logs`:
 - **Table** — Timestamp (UTC), Query, Route path (`router → sentinel → NeoWs`), Agent badge, Latency, Status (OK / WARN / ERROR)
 - **Telemetry Console** — collapsible bottom bar logging every client-side event in real time
 
-**Relevant for:** Developers debugging routing, researchers tracking query history, mission commanders reviewing activity logs.
+**Why it matters:** Every query ORION processes is a decision a human is about to act on. The Mission Log provides a durable, timestamped record of what was asked, which agent answered, how fast it responded, and whether it succeeded — giving mission teams an audit trail for post-event review, and giving developers a live debugging surface when integrating ORION into a larger workflow. **Relevant for:** Developers debugging routing, researchers tracking query history, mission commanders reviewing activity logs.
 
 ---
 
@@ -617,7 +632,7 @@ Live telemetry from the NASA DSN XML feed, refreshed every 15 seconds:
 - **Dish table** — per-complex, per-dish: DSS ID, status, elevation/azimuth, spacecraft, signal type, data rate, range (Gkm)
 - **SatNOGS overlay** — community ground stations augment the map with global coverage
 
-**Relevant for:** Mission controllers, deep space communication engineers, and space enthusiasts tracking real spacecraft contacts.
+**Why it matters:** Solar events don't just affect satellites — they affect the ground antennas trying to communicate with them. When the Forecaster reports an M-class flare, the Ground Relay view lets you immediately see which DSN dishes are actively tracking spacecraft and whether any uplink/downlink sessions are at risk. It contextualises space weather as an operational ground-segment problem, not just an abstract metric. **Relevant for:** Mission controllers, deep space communication engineers, and space enthusiasts tracking real spacecraft contacts.
 
 ---
 
@@ -631,13 +646,13 @@ Live telemetry from the NASA DSN XML feed, refreshed every 15 seconds:
 
 Dual-panel situational awareness:
 
-- **NASA Eyes on the Solar System** — live 3D heliocentric visualization: planets, active NASA spacecraft, current asteroid target. Fully interactive pan/zoom/rotate.
-- **OPEN FULL SCREEN** — launches the visualization full-browser
-- **JPL ORBIT DATA** — opens the NASA JPL Small-Body Database entry for the selected asteroid
-- **Target list** — scrollable list of all current NEOs with miss distances and dates; click any to switch the Eyes view
+- **NASA Eyes on the Solar System** — an interactive 3D heliocentric simulation built and maintained by NASA/JPL, embedded directly into ORION. It shows real planetary positions, active NASA spacecraft, and the current solar system geometry. It is a NASA-hosted visualisation tool — not a rendering of the asteroids detected by the Sentinel agent. Pan, zoom, and rotate freely.
+- **OPEN FULL SCREEN** — launches the visualisation full-browser for presentations or detailed inspection
+- **JPL ORBIT DATA** — opens the NASA JPL Small-Body Database entry for the selected asteroid in a new tab
+- **Target list** — the NEOs listed here are sourced from the same NeoWs feed as the Sentinel panel; clicking one changes the Eyes view to that asteroid's approximate heliocentric position
 - **PHO flag** — `○ PHO` badge on hazardous objects
 
-**Relevant for:** Planetary scientists, students, science communicators, and mission planners who need to visualise the heliocentric geometry of a close-approach event.
+**Why it matters:** Numbers on a table (miss distance: 7,077,379 km) are hard to reason about in three dimensions. The Orbit Viewer gives mission planners, educators, and science communicators an immediate spatial sense of where an approaching asteroid actually is relative to Earth and the Sun — turning a Sentinel briefing from a list of numbers into a geometry problem you can see. **Relevant for:** Planetary scientists, students, science communicators, and mission planners.
 
 ---
 
@@ -675,80 +690,6 @@ Generates a client-side PDF mission briefing (no server roundtrip):
 - Orbital threat matrix with live Kp and PHO table (from `/api/kp` + last Sentinel query)
 - Hardware mitigation protocol recommendations
 - Full current-session telemetry console log
-
----
-
-## 🖼️ System Gallery
-
-### Telemetry Core — Live Agent Dashboard
-<p align="center">
-<img src="./assets/01-telemetry-core.png" alt="Telemetry Core — Live Dashboard" width="90%">
-<br/>
-<em>The primary command view on load: Sentinel (radar sweep idle), Forecaster (waveform idle), Archivist (document scan idle — 939 chunks indexed). Mission clock and uplink active in the header.</em>
-</p>
-
-### Historical Analytics — 30-Day Flare Frequency
-<p align="center">
-<img src="./assets/02-historical-analytics.png" alt="Historical Analytics View" width="90%">
-<br/>
-<em>Threat & Risk → Historical: Kp NOMINAL (0.3), 13 flares, 0 X-class, 1862 km/s peak CME, 20 PHO approaches. Flare frequency line chart and Risk Radar live vs baseline.</em>
-</p>
-
-### Threat Posture — CME Propagation & Mitigation Protocols
-<p align="center">
-<img src="./assets/02b-cme-mitigation.png" alt="CME Mitigation Protocols" width="90%">
-<br/>
-<em>30-day CME propagation speed bar chart (peak 1,862 km/s). HF Radio Blackout Response (R3 blackout — M5+ flare) and PHO Proximity Alert both ACTIVE.</em>
-</p>
-
-### Advanced Threat Matrix
-<p align="center">
-<img src="./assets/03-threat-matrix.png" alt="Advanced Threat Matrix" width="90%">
-<br/>
-<em>Three equal-width live heuristic modules: Orbital Debris & Drag (ISS/CSS/HST drag calculations), Cybersecurity & Spectrum (R3 Strong Radio Blackout, ITU band degradation), Solar Wind (NOAA DSCOVR Bz/Bt/density/speed).</em>
-</p>
-
-### Constellation Fleet
-<p align="center">
-<img src="./assets/04-constellation-fleet.png" alt="Constellation Fleet View" width="90%">
-<br/>
-<em>12 satellites: ISS (418 km LEO), CSS (390 km LEO), HST (472 km LEO), GOES 16/18 (35,787 km GEO), Landsat 9 (703 km LEO). Live CelesTrak data, HEO band filter active.</em>
-</p>
-
-### Mission Activity Log
-<p align="center">
-<img src="./assets/05-mission-log.jpg" alt="Mission Activity Log" width="90%">
-<br/>
-<em>67 queries, 11.4s avg latency, 67.2% success rate. Rows show full route paths (router → sentinel → NeoWs, router → forecaster → DONKI) with per-query latency and status. PHO mitigation banner active.</em>
-</p>
-
-### Ground Relay Grid — World Map
-<p align="center">
-<img src="./assets/06-ground-relay-map.png" alt="Ground Relay Map" width="90%">
-<br/>
-<em>6 active dishes, 3 standby, 6 maintenance, 6 active spacecraft (JNO, MRO, M01O, TGO, PSYC, VGR1). 1.24 Mbps total downlink. Goldstone and Madrid on the equirectangular map.</em>
-</p>
-
-### Ground Relay Grid — DSN Dish Table
-<p align="center">
-<img src="./assets/07-ground-relay-table.png" alt="Ground Relay Table" width="90%">
-<br/>
-<em>Goldstone: DSS26 (BOTH — Juno, 931 Gkm, X-band 26.0 kbps downlink), DSS23 (STANDBY — LUCY, 806 Gkm), DSS24 (STANDBY — SOHO). Madrid complex below.</em>
-</p>
-
-### Orbit Viewer — Situational Awareness
-<p align="center">
-<img src="./assets/08-orbit-viewer.jpg" alt="Orbit Viewer" width="90%">
-<br/>
-<em>NASA Eyes on the Solar System: Earth, Venus, Mars, Parker Solar Probe, Europa Clipper, STEREO Ahead. 20 current NEOs in target list. Active: 2005 PJ2 (PHO) — 7,077,379 km miss distance.</em>
-</p>
-
-### System Status Modal
-<p align="center">
-<img src="./assets/08-system-status.png" alt="System Status Modal" width="60%">
-<br/>
-<em>All six dependencies LIVE: NASA NeoWs 240ms / 99.8%, NASA DONKI 210ms / 99.5%, Supabase 45ms / 100%, IBM watsonx 748ms / 99.9%, IBM IAM 56ms / 100%, IBM Docling 146ms / 98.2%.</em>
-</p>
 
 ---
 

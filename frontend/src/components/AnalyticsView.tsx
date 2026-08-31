@@ -191,10 +191,14 @@ export default function AnalyticsView({
   const [isBusting,  setIsBusting]   = useState(false);
   const [fetchError,  setFetchError]  = useState<string | null>(null);
   const [syncedAt,    setSyncedAt]    = useState("");
+  const [recovered,   setRecovered]   = useState(false);
+
+  const hasDonkiErrors = (a: AnalyticsResponse | null) =>
+    (a?.errors ?? []).some(e => e.toLowerCase().includes("donki"));
 
   /** Normal load — serves from server TTL cache if fresh (≤15 min) */
-  const load = useCallback(async (bust = false) => {
-    setLoadingData(true);
+  const load = useCallback(async (bust = false, silent = false) => {
+    if (!silent) setLoadingData(true);
     try {
       const url = bust ? "/api/analytics?bust=1" : "/api/analytics";
       const res = await fetch(url, { cache: "no-store" });
@@ -207,10 +211,12 @@ export default function AnalyticsView({
           .map(n => String(n).padStart(2, "0")).join(":") + " UTC"
       );
       setFetchError(null);
+      return json;
     } catch (e) {
-      setFetchError(e instanceof Error ? e.message : "Analytics fetch failed");
+      if (!silent) setFetchError(e instanceof Error ? e.message : "Analytics fetch failed");
+      return null;
     } finally {
-      setLoadingData(false);
+      if (!silent) setLoadingData(false);
       setIsBusting(false);
     }
   }, []);
@@ -229,6 +235,20 @@ export default function AnalyticsView({
     const id = setInterval(() => load(false), 15 * 60 * 1000);
     return () => clearInterval(id);
   }, [tab, load]);
+
+  // Background recovery poller — runs every 60s while DONKI errors are present
+  useEffect(() => {
+    if (!hasDonkiErrors(analytics)) return;
+    const id = setInterval(async () => {
+      const fresh = await load(true, true);
+      if (fresh && !hasDonkiErrors(fresh)) {
+        setRecovered(true);
+        setTimeout(() => setRecovered(false), 6000);
+      }
+    }, 60_000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analytics, load]);
 
   const m = analytics?.metrics ?? null;
   const flareChart = analytics?.flareChart ?? [];
@@ -329,6 +349,16 @@ export default function AnalyticsView({
         <>
           {/* Live Kp banner */}
           <KpStatusBanner />
+
+          {/* NASA DONKI recovery toast */}
+          {recovered && (
+            <div
+              className="glass rounded-xl px-4 py-2.5 font-mono text-[10px] transition-all duration-500"
+              style={{ color: "var(--emerald)", borderColor: "rgba(52,211,153,0.35)" }}
+            >
+              ✓ NASA DONKI restored — data refreshed
+            </div>
+          )}
 
           {/* Hard fetch error */}
           {fetchError && (

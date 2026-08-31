@@ -759,14 +759,14 @@ export default function Home() {
               style={{ gridAutoRows: "minmax(450px, 1fr)", alignItems: "stretch" }}
             >
               <SentinelPanel
-                data={result?.intent === "sentinel" ? (result as SentinelData) : null}
+                data={sentinelData}
                 loading={loading && (!activeIntent || activeIntent === "sentinel")}
                 active={activeIntent === "sentinel" || activeIntent === null}
                 dimmed={activeIntent !== null && activeIntent !== "sentinel"}
                 onSelectItem={openAsteroid}
               />
               <ForecasterPanel
-                data={result?.intent === "forecaster" ? (result as ForecasterData) : null}
+                data={forecasterData}
                 loading={loading && (!activeIntent || activeIntent === "forecaster")}
                 active={activeIntent === "forecaster" || activeIntent === null}
                 dimmed={activeIntent !== null && activeIntent !== "forecaster"}

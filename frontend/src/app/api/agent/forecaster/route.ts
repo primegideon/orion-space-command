@@ -43,69 +43,84 @@ function mapFlare(f: DonkiFlare): FlareItem {
   };
 }
 
-const SUMMARY_PROMPT = (
-  items: FlareItem[],
-  period: { start: string; end: string }
-) => `\
-You are FORECASTER, the solar weather analyst for ORION Space Command.
-Solar flare events detected between ${period.start} and ${period.end}:
-${items.length === 0 ? "No flares detected." : items.slice(0, 15).map((f) => `- ${f.class_type} flare at ${f.peak_time ?? f.begin_time}${f.source_location ? ` from ${f.source_location}` : ""}`).join("\n")}
+function buildForecasterPrompt(items: FlareItem[], period: { start: string; end: string }): string {
+  // Fix F2 + F3: pre-compute all key facts before the model sees the prompt
+  const classPriority: Record<string, number> = { X: 4, M: 3, C: 2, B: 1 };
+  const worstClass = items.reduce<string | null>((best, f) => {
+    const letter = (f.class_type ?? "").charAt(0).toUpperCase();
+    if (!best) return letter;
+    return (classPriority[letter] ?? 0) > (classPriority[best] ?? 0) ? letter : best;
+  }, null);
+  const xCount = items.filter(f => f.class_type?.toUpperCase().startsWith("X")).length;
+  const mCount = items.filter(f => f.class_type?.toUpperCase().startsWith("M")).length;
+  const cCount = items.filter(f => f.class_type?.toUpperCase().startsWith("C")).length;
 
-Write a single paragraph of 2-3 sentences as a professional space-weather advisory. Mention the total flare count, highlight the most severe class observed, and state any risk to satellites or communications. Output only the advisory paragraph — no headings, no bullet points, no markdown, no JSON, no step-by-step reasoning, no preamble.`;
+  const isQuiet = items.length === 0;
+
+  // Fix F2: explicit quiet-period guidance so model doesn't invent activity
+  const quietNote = isQuiet
+    ? "\nIMPORTANT: No flares were detected. This is a geomagnetically quiet period. Do NOT invent or imply any solar activity. State that the period was quiet and radiation risk is currently low."
+    : "";
+
+  const facts = isQuiet
+    ? `Observation period: ${period.start} to ${period.end}\nTotal flares detected: 0\nSolar activity level: QUIET`
+    : [
+        `Observation period: ${period.start} to ${period.end}`,
+        `Total flares detected: ${items.length}`,
+        `Worst class observed: ${worstClass ?? "unknown"}`,
+        `X-class count: ${xCount}`,
+        `M-class count: ${mCount}`,
+        `C-class count: ${cCount}`,
+      ].join("\n");
+
+  const eventList = isQuiet ? "" : "\nRECENT EVENTS (most recent first):\n" +
+    items.slice(0, 15).map(f =>
+      `${f.class_type} at ${f.peak_time ?? f.begin_time}${f.source_location ? ` from ${f.source_location}` : ""}${f.active_region ? ` (AR${f.active_region})` : ""}`
+    ).join("\n");
+
+  return `You are FORECASTER, the solar weather analyst for ORION Space Command.
+
+PRE-COMPUTED FACTS (use these numbers exactly — do not recalculate):
+${facts}${eventList}${quietNote}
+
+Write a 2–3 sentence space-weather advisory for the ORION operator. State the total flare count and observation period, name the worst severity class observed, and state the risk level to satellite communications and power infrastructure. Use the pre-computed facts above verbatim.
+
+OUTPUT RULES: Plain prose paragraph only. No headings. No bullet points. No asterisks. No markdown. No JSON. No numbered lists. No reasoning steps. No preamble. Do not start with "Here is" or any meta-commentary. Start directly with the advisory content.`;
+}
 
 /* ── output sanitiser ────────────────────────────────────────────────────── */
 function cleanSummary(raw: string): string {
   let text = raw;
 
-  // If the model emitted an edit/rewrite marker, keep only the final version
+  // Strip rewrite/revision markers — keep only the final version
   const editMarkers = [
     /\bis\s+rewritten\s+to\s*:?\s*/i,
     /\bhas\s+been\s+rewritten\s+as\s*:?\s*/i,
     /\brevised\s+version\s*:?\s*/i,
-    /\bupdated\s+paragraph\s*:?\s*/i,
-    /\bhere\s+is\s+the\s+rewritten[^:\n]*:?\s*/i,
+    /\bupdated\s+(?:paragraph|advisory)\s*:?\s*/i,
+    /\bhere\s+is\s+the\s+(?:rewritten|updated|revised)[^:\n]*:?\s*/i,
     /\bhere'?s?\s+the\s+(?:rewritten|updated|revised)[^:\n]*:?\s*/i,
+    /^here\s+is\s+the\s+(?:space-weather\s+)?advisory[^:\n]*:?\s*/im,
+    /^advisory[^:\n]*:?\s*/im,
   ];
   for (const marker of editMarkers) {
     const parts = text.split(marker);
-    if (parts.length > 1) {
-      text = parts[parts.length - 1];
-    }
+    if (parts.length > 1) text = parts[parts.length - 1];
   }
 
   text = text
-    // Strip markdown code fences (```...```)
     .replace(/```[\s\S]*?```/g, "")
-    // Strip inline backticks
     .replace(/`[^`]*`/g, "")
-    // Strip markdown headings (## Step 1, ### etc.)
     .replace(/^#{1,6}\s+.*/gm, "")
-    // Strip lines that look like chain-of-thought steps
     .replace(/^(step\s*\d+[:\-.]?.*|thinking[:\-.]?.*|reasoning[:\-.]?.*)/gim, "")
-    // Strip JSON-like lines
     .replace(/^\s*[\{\[].*/gm, "")
-    // Strip bold/italic markers
     .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
-    // Collapse multiple blank lines to one
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  // De-duplicate: if the same sentence block appears twice in a row
-  // (model repeated itself without any marker), keep only the first occurrence.
-  // Split on sentence boundaries, then check for a repeated run of ≥3 sentences.
-  const sentences = text.split(/(?<=[.!?])\s+/);
-  if (sentences.length >= 6) {
-    const half = Math.floor(sentences.length / 2);
-    const firstHalf  = sentences.slice(0, half).join(" ").toLowerCase();
-    const secondHalf = sentences.slice(sentences.length - half).join(" ").toLowerCase();
-    // Levenshtein-free similarity: if second half starts with ≥60% of first half's words
-    const firstWords  = new Set(firstHalf.split(/\W+/).filter(Boolean));
-    const secondWords = secondHalf.split(/\W+/).filter(Boolean);
-    const overlap = secondWords.filter(w => firstWords.has(w)).length;
-    if (overlap / firstWords.size > 0.6) {
-      text = sentences.slice(0, half).join(" ").trim();
-    }
-  }
+  // Fix F1: REMOVED the aggressive word-overlap deduplication heuristic.
+  // It was silently chopping valid advisories because solar domain words
+  // (solar, flare, activity, period, detected) are shared across sentences.
 
   return text;
 }
@@ -178,20 +193,21 @@ export async function POST(req: NextRequest) {
         : `${items.length} solar flare(s) detected from ${period.start} to ${period.end}.`;
 
     // Try Groq gpt-oss-120b first; fall back to watsonx (non-fatal)
+    const prompt = buildForecasterPrompt(items, period);
     let modelUsed = "fallback";
     try {
-      const raw = await generateTextGroq(SUMMARY_PROMPT(items, period), {
+      const raw = await generateTextGroq(prompt, {
         maxTokens: 1024,
-        temperature: 0.3,
+        temperature: 0.2,
       });
       const cleaned = cleanSummary(raw);
       if (cleaned.length > 20) { summary = cleaned; modelUsed = "gpt-oss-120b-groq"; }
     } catch (groqErr) {
       console.warn("[forecaster] groq summary failed, falling back to watsonx:", groqErr);
       try {
-        const raw = await generateText(SUMMARY_PROMPT(items, period), {
-          maxNewTokens: 200,
-          temperature: 0.3,
+        const raw = await generateText(prompt, {
+          maxNewTokens: 350, // Fix F4: 350 tokens is sufficient for 3 sentences
+          temperature: 0.2,
         });
         const cleaned = cleanSummary(raw);
         if (cleaned.length > 20) { summary = cleaned; modelUsed = "llama-4-maverick"; }

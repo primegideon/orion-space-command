@@ -96,31 +96,27 @@ const ARCHIVIST_EXPLAIN =
   /^(explain|what is|what are|how does|how do|what role|describe|define|tell me about|what exist|what mitigation|what.{0,10}strategies)\b/i;
 
 function keywordRoute(q: string): string | null {
-  const hasSentinelLive    = SENTINEL_LIVE.test(q);
-  const hasForecasterLive  = FORECASTER_LIVE.test(q);
-  const hasSentinelTopic   = SENTINEL_TOPIC.test(q);
-  const hasForecasterTopic = FORECASTER_TOPIC.test(q);
-  const hasArchivistStrong = ARCHIVIST_STRONG.test(q);
+  const hasSentinelLive     = SENTINEL_LIVE.test(q);
+  const hasForecasterLive   = FORECASTER_LIVE.test(q);
+  const hasSentinelTopic    = SENTINEL_TOPIC.test(q);
+  const hasForecasterTopic  = FORECASTER_TOPIC.test(q);
+  const hasArchivistStrong  = ARCHIVIST_STRONG.test(q);
   const hasArchivistExplain = ARCHIVIST_EXPLAIN.test(q);
 
-  // ── Rule 1: Explicit live-data intent → always live agents ──────────────
-  // Forecaster live alone is sufficient (e.g. "how active has the sun been lately?" — "lately"
-  // triggers FORECASTER_LIVE, no topic needed when the live phrase already implies solar)
-  if (hasSentinelLive && hasSentinelTopic && !hasArchivistStrong) return "sentinel";
-  if (hasForecasterLive && (hasForecasterTopic || !hasSentinelTopic) && !hasArchivistStrong) return "forecaster";
-  // Sentinel live alone is sufficient when there's no competing forecaster topic
-  if (hasSentinelLive && !hasForecasterTopic && !hasArchivistStrong) return "sentinel";
-
-  // ── Rule 2: Strong archivist signal → archivist wins over domain topic ──
-  // "what does research say about asteroid deflection?" — has asteroid keyword but research wins
-  // "how do scientists predict solar flares?" — has flare keyword but scientists wins
+  // ── Rule 1: Strong archivist signal wins FIRST — before any live-data check ──
+  // Fix R2: "what is the current state of near-Earth asteroid survey completeness?"
+  // had `current` matching FORECASTER_LIVE and `asteroid` matching SENTINEL_TOPIC,
+  // both of which fired before `survey completeness` hit ARCHIVIST_STRONG.
+  // Checking archivist first prevents domain keywords from hijacking research queries.
   if (hasArchivistStrong) return "archivist";
 
-  // ── Rule 3: Explain-style + NO live intent → archivist ──────────────────
-  // "explain near-Earth object detection methods" (no "show me", "this week" etc.)
-  // "explain CNN models for space weather prediction"
-  // "what is the Torino scale?"
+  // ── Rule 2: Explain-style + NO live intent → archivist ──────────────────
   if (hasArchivistExplain && !hasSentinelLive && !hasForecasterLive) return "archivist";
+
+  // ── Rule 3: Explicit live-data intent → always live agents ──────────────
+  if (hasSentinelLive && hasSentinelTopic) return "sentinel";
+  if (hasForecasterLive && (hasForecasterTopic || !hasSentinelTopic)) return "forecaster";
+  if (hasSentinelLive && !hasForecasterTopic) return "sentinel";
 
   // ── Rule 4: Pure topic match with no research framing → live agents ──────
   if (hasSentinelTopic && !hasForecasterTopic) return "sentinel";

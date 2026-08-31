@@ -66,24 +66,75 @@ function flattenNeo(feed: NeoWsFeed): AsteroidItem[] {
   return items;
 }
 
-const SUMMARY_PROMPT = (items: AsteroidItem[], dateRange: { start: string; end: string }) => `\
-You are SENTINEL, the near-Earth object monitoring agent for ORION Space Command.
-The orbital tracking layer is actively monitoring 25 satellites across LEO, MEO, and GEO orbits.
-Asteroid close-approach data for ${dateRange.start} to ${dateRange.end}:
-${items.slice(0, 20).map((a) => `- ${a.name}: ${a.miss_distance_km?.toLocaleString() ?? "?"} km miss distance on ${a.close_approach_date}${a.is_potentially_hazardous ? " [PHO]" : ""}`).join("\n")}
+function buildSentinelPrompt(items: AsteroidItem[], dateRange: { start: string; end: string }): string {
+  // Pre-compute key facts so the model doesn't have to derive them (fixes S4)
+  const phoList = items.filter(a => a.is_potentially_hazardous);
+  const closest = items.reduce<AsteroidItem | null>((best, a) => {
+    if (a.miss_distance_km === null) return best;
+    if (best === null || best.miss_distance_km === null) return a;
+    return a.miss_distance_km < best.miss_distance_km ? a : best;
+  }, null);
+  const largest = items.reduce<AsteroidItem | null>((best, a) => {
+    if (a.estimated_diameter_km_max === null) return best;
+    if (best === null || best.estimated_diameter_km_max === null) return a;
+    return a.estimated_diameter_km_max > best.estimated_diameter_km_max ? a : best;
+  }, null);
 
-Write a single paragraph of 2-3 sentences as a professional mission briefing. Mention the total asteroid count, note that 25 satellites across LEO, MEO, and GEO are being tracked on the orbital display, highlight any PHO designations, and state the closest approach distance. Output only the briefing paragraph — no headings, no bullet points, no markdown, no JSON, no step-by-step reasoning, no preamble.`;
+  const facts = [
+    `Tracking window: ${dateRange.start} to ${dateRange.end}`,
+    `Total objects detected: ${items.length}`,
+    `Potentially hazardous (PHO): ${phoList.length}${phoList.length > 0 ? ` — ${phoList.map(a => a.name).join(", ")}` : ""}`,
+    closest ? `Closest approach: ${closest.name} at ${closest.miss_distance_km?.toLocaleString()} km on ${closest.close_approach_date}` : "Closest approach: none",
+    largest ? `Largest object: ${largest.name} (≤${largest.estimated_diameter_km_max?.toFixed(3)} km diameter)` : "",
+  ].filter(Boolean).join("\n");
+
+  const objectList = items.slice(0, 20).map(a =>
+    `${a.name}: ${a.miss_distance_km?.toLocaleString() ?? "?"} km on ${a.close_approach_date}, ` +
+    `diameter ≤${a.estimated_diameter_km_max?.toFixed(3) ?? "?"} km, ` +
+    `${a.relative_velocity_kmh?.toLocaleString() ?? "?"} km/h` +
+    (a.is_potentially_hazardous ? " [PHO]" : "")
+  ).join("\n");
+
+  // Fix S1: no satellite reference. Fix S2: imperative not template-style.
+  return `You are SENTINEL, the near-Earth object monitoring agent for ORION Space Command.
+
+PRE-COMPUTED FACTS (use these numbers exactly — do not recalculate):
+${facts}
+
+FULL OBJECT LIST:
+${objectList}
+
+Write a 2–3 sentence mission briefing for the ORION operator. State how many near-Earth objects are being tracked this week, name the closest approach object and its exact miss distance, and flag any PHO designations by name. Be factual, direct, and precise — use the pre-computed numbers above verbatim.
+
+OUTPUT RULES: Plain prose paragraph only. No headings. No bullet points. No asterisks. No markdown. No JSON. No numbered lists. No reasoning steps. No preamble. Do not start with "Here is" or "Drafting" or any meta-commentary. Start directly with the briefing content.`;
+}
 
 /* ── output sanitiser ────────────────────────────────────────────────────── */
 function cleanSummary(raw: string): string {
-  return raw
-    // Strip markdown code fences (```...```)
+  let text = raw;
+
+  // Fix S5: strip Gemini preamble patterns before any other processing
+  const preamblePatterns = [
+    /^drafting\s+the\s+briefing[^:\n]*:?\s*/im,
+    /^here\s+is\s+the\s+(?:mission\s+)?briefing[^:\n]*:?\s*/im,
+    /^mission\s+briefing[^:\n]*:?\s*/im,
+    /^briefing[^:\n]*:?\s*/im,
+    /^here'?s?\s+(?:the\s+)?(?:mission\s+)?briefing[^:\n]*:?\s*/im,
+    /^(?:sentence\s+\d+|paragraph)[^:\n]*:?\s*/im,
+    /^output[^:\n]*:?\s*/im,
+  ];
+  for (const p of preamblePatterns) {
+    text = text.replace(p, "");
+  }
+
+  return text
+    // Strip markdown code fences
     .replace(/```[\s\S]*?```/g, "")
     // Strip inline backticks
     .replace(/`[^`]*`/g, "")
-    // Strip markdown headings (## Step 1, ### etc.)
+    // Strip markdown headings
     .replace(/^#{1,6}\s+.*/gm, "")
-    // Strip lines that look like chain-of-thought steps
+    // Strip chain-of-thought lines
     .replace(/^(step\s*\d+[:\-.]?.*|thinking[:\-.]?.*|reasoning[:\-.]?.*)/gim, "")
     // Strip JSON-like lines
     .replace(/^\s*[\{\[].*/gm, "")
@@ -126,22 +177,23 @@ export async function POST(req: NextRequest) {
     const feed = (await feedRes.json()) as NeoWsFeed;
     const items = flattenNeo(feed);
 
-    // Generate summary — try Gemini 2.0 Flash first; fall back to watsonx (non-fatal)
+    // Generate summary — try Gemini first; fall back to watsonx (non-fatal)
+    const prompt = buildSentinelPrompt(items, dateRange);
     let summary = `${items.length} near-Earth objects tracked from ${dateRange.start} to ${dateRange.end}.`;
     let modelUsed = "fallback";
     try {
-      const raw = await generateTextGemini(SUMMARY_PROMPT(items, dateRange), {
-        maxOutputTokens: 600,  // Gemini 3.6 Flash needs headroom for thinking tokens
-        temperature: 0.3,
+      const raw = await generateTextGemini(prompt, {
+        maxOutputTokens: 1500, // Fix S3: 1500 gives thinking model room to complete the response
+        temperature: 0.2,
       });
       const cleaned = cleanSummary(raw);
       if (cleaned.length > 20) { summary = cleaned; modelUsed = "gemini-3.5-flash"; }
     } catch (geminiErr) {
       console.warn("[sentinel] gemini summary failed, falling back to watsonx:", geminiErr);
       try {
-        const raw = await generateText(SUMMARY_PROMPT(items, dateRange), {
-          maxNewTokens: 200,
-          temperature: 0.3,
+        const raw = await generateText(prompt, {
+          maxNewTokens: 350, // Fix S6: 350 tokens is enough for 3 sentences
+          temperature: 0.2,
         });
         const cleaned = cleanSummary(raw);
         if (cleaned.length > 20) { summary = cleaned; modelUsed = "llama-4-maverick"; }
