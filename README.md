@@ -7,6 +7,7 @@
 > **IBM AI Builders Challenge · August 2026 · Theme: Advance Space Exploration with AI**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-orion--space--command.vercel.app-38bdf8?style=flat-square&logo=vercel)](https://orion-space-command.vercel.app)
+[![Demo Video](https://img.shields.io/badge/Demo%20Video-YouTube-ff0000?style=flat-square&logo=youtube)](https://youtu.be/83OXDwWyCm4)
 [![Sample Queries](https://img.shields.io/badge/Sample%20Queries-try%20these%20↓-6366f1?style=flat-square)](#-sample-mission-queries)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![IBM watsonx](https://img.shields.io/badge/IBM-watsonx.ai-be95ff?style=flat-square)](https://www.ibm.com/watsonx)
@@ -15,6 +16,7 @@
 [![Vercel](https://img.shields.io/badge/Deployed-Vercel-black?style=flat-square&logo=vercel)](https://orion-space-command.vercel.app)
 
 **Live:** https://orion-space-command.vercel.app
+**Demo Video:** https://youtu.be/83OXDwWyCm4
 
 ---
 
